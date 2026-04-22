@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz — Transformers: inteligentny chatbot</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --orange: #F58220;
+    --orange-light: #F8E2CB;
+    --orange-glow: rgba(245, 130, 32, 0.15);
+    --purple: #6F499D;
+    --purple-light: #D4CFE5;
+    --purple-glow: rgba(111, 73, 157, 0.12);
+    --dark: #2D2D2D;
+    --gray: #F5F5F5;
+    --white: #FFFFFF;
+    --green: #2ECC71;
+    --red: #E74C3C;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: var(--gray);
+    color: var(--dark);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .bg-pattern {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 10% 20%, var(--orange-glow), transparent),
+      radial-gradient(ellipse 60% 80% at 90% 80%, var(--purple-glow), transparent);
+    pointer-events: none;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 40px 20px 60px;
+  }
+
+  /* ─── Header ─── */
+  .header {
+    text-align: center;
+    margin-bottom: 48px;
+    animation: fadeDown 0.6s ease-out;
+  }
+
+  .header-tag {
+    display: inline-block;
+    background: var(--purple);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 6px 16px;
+    border-radius: 100px;
+    margin-bottom: 16px;
+  }
+
+  .header h1 {
+    font-size: clamp(26px, 5vw, 38px);
+    font-weight: 800;
+    line-height: 1.15;
+    color: var(--dark);
+    margin-bottom: 8px;
+  }
+
+  .header h1 span { color: var(--orange); }
+
+  .header p {
+    font-size: 15px;
+    color: #777;
+    font-weight: 400;
+  }
+
+  /* ─── Progress ─── */
+  .progress-wrap {
+    background: var(--white);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 32px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    animation: fadeDown 0.6s ease-out 0.1s both;
+  }
+
+  .progress-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .progress-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #999;
+  }
+
+  .progress-score {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--purple);
+  }
+
+  .progress-bar {
+    height: 8px;
+    background: var(--gray);
+    border-radius: 100px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--orange), var(--purple));
+    border-radius: 100px;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ─── Question Card ─── */
+  .question-card {
+    background: var(--white);
+    border-radius: 20px;
+    padding: 32px 28px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    animation: fadeUp 0.5s ease-out;
+    border: 2px solid transparent;
+    transition: border-color 0.3s;
+  }
+
+  .question-card.correct { border-color: var(--green); }
+  .question-card.wrong { border-color: var(--red); }
+
+  .q-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--orange);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .q-text {
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.5;
+    margin-bottom: 24px;
+    color: var(--dark);
+  }
+
+  .q-text code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    background: var(--orange-light);
+    color: var(--dark);
+    padding: 2px 7px;
+    border-radius: 6px;
+  }
+
+  /* ─── Options ─── */
+  .options { display: flex; flex-direction: column; gap: 10px; }
+
+  .option {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    border: 2px solid #E8E8E8;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--white);
+    user-select: none;
+  }
+
+  .option:hover:not(.disabled) {
+    border-color: var(--purple-light);
+    background: var(--purple-glow);
+    transform: translateY(-1px);
+  }
+
+  .option.disabled { cursor: default; opacity: 0.65; }
+  .option.selected { border-color: var(--purple); background: var(--purple-glow); opacity: 1; }
+  .option.is-correct { border-color: var(--green); background: rgba(46,204,113,0.08); opacity: 1; }
+  .option.is-wrong { border-color: var(--red); background: rgba(231,76,60,0.06); opacity: 1; }
+
+  .option-letter {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: var(--gray);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: #999;
+    flex-shrink: 0;
+    transition: all 0.2s;
+  }
+
+  .option.selected .option-letter { background: var(--purple); color: white; }
+  .option.is-correct .option-letter { background: var(--green); color: white; }
+  .option.is-wrong .option-letter { background: var(--red); color: white; }
+
+  .option-text {
+    font-size: 15px;
+    line-height: 1.45;
+    color: var(--dark);
+  }
+
+  .option-text code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    background: var(--orange-light);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  /* ─── Feedback ─── */
+  .feedback {
+    margin-top: 16px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+    font-weight: 500;
+    animation: fadeUp 0.3s ease-out;
+  }
+
+  .feedback.correct-fb {
+    background: rgba(46,204,113,0.08);
+    color: #1a8a4a;
+    border-left: 4px solid var(--green);
+  }
+
+  .feedback.wrong-fb {
+    background: rgba(231,76,60,0.06);
+    color: #c0392b;
+    border-left: 4px solid var(--red);
+  }
+
+  /* ─── Results ─── */
+  .results {
+    background: var(--white);
+    border-radius: 20px;
+    padding: 40px 28px;
+    text-align: center;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    animation: fadeUp 0.6s ease-out;
+    display: none;
+  }
+
+  .results-icon {
+    font-size: 56px;
+    margin-bottom: 16px;
+  }
+
+  .results h2 {
+    font-size: 26px;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+
+  .results-score {
+    font-size: 48px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--orange), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 16px 0;
+  }
+
+  .results p { font-size: 15px; color: #777; margin-bottom: 24px; }
+
+  .btn-restart {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 32px;
+    border: none;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--orange), var(--purple));
+    color: white;
+    font-family: 'Outfit', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .btn-restart:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(245,130,32,0.3);
+  }
+
+  /* ─── Animations ─── */
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+    100% { transform: scale(1); }
+  }
+
+  .pop { animation: pop 0.3s ease-out; }
+</style>
+</head>
+<body>
+<div class="bg-pattern"></div>
+<div class="container">
+
+  <div class="header">
+    <div class="header-tag">Lekcja 37 — Python</div>
+    <h1>Transformers: <span>inteligentny chatbot</span></h1>
+    <p>10 pytań powtórkowych z lekcji</p>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-top">
+      <span class="progress-label" id="progressLabel">Pytanie 1 z 10</span>
+      <span class="progress-score" id="progressScore">0 / 10</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </div>
+
+  <div id="quizArea"></div>
+  <div class="results" id="results">
+    <div class="results-icon" id="resultsIcon"></div>
+    <h2 id="resultsTitle"></h2>
+    <div class="results-score" id="resultsScore"></div>
+    <p id="resultsText"></p>
+    <button class="btn-restart" onclick="restartQuiz()">Spróbuj ponownie</button>
+  </div>
+
+</div>
+
+<script>
+const QUESTIONS = [
+  {
+    q: "Co robi klasa <code>AutoTokenizer</code> z biblioteki transformers?",
+    options: [
+      "Generuje odpowiedzi modelu na pytania użytkownika",
+      "Zamienia tekst na tokeny (liczby) zrozumiałe dla modelu",
+      "Trenuje model językowy na nowych danych",
+      "Mierzy zużycie pamięci RAM programu"
+    ],
+    correct: 1,
+    explain: "AutoTokenizer zamienia tekst na ciąg liczb (tokenów), które model potrafi przetworzyć."
+  },
+  {
+    q: "Co oznacza skrót \"CausalLM\" w nazwie <code>AutoModelForCausalLM</code>?",
+    options: [
+      "Model klasyfikujący tekst do kategorii",
+      "Model generujący tekst token po tokenie na podstawie poprzednich",
+      "Model tłumaczący tekst między językami",
+      "Model kompresujący dane tekstowe"
+    ],
+    correct: 1,
+    explain: "CausalLM to model generujący tekst sekwencyjnie - przewiduje kolejny token na podstawie wcześniejszych."
+  },
+  {
+    q: "Dlaczego pierwsze uruchomienie programu z modelem trwa znacznie dłużej niż kolejne?",
+    options: [
+      "Python musi się skompilować przy pierwszym uruchomieniu",
+      "Model jest pobierany z internetu i zapisywany lokalnie na dysku",
+      "Biblioteka transformers instaluje się automatycznie",
+      "System operacyjny blokuje nowe programy przy pierwszym uruchomieniu"
+    ],
+    correct: 1,
+    explain: "Przy pierwszym uruchomieniu pliki modelu są pobierane z Hugging Face. Kolejne uruchomienia ładują je z dysku."
+  },
+  {
+    q: "Co robi parametr <code>max_new_tokens=200</code> w metodzie <code>model.generate</code>?",
+    options: [
+      "Ustawia maksymalną liczbę słów w pytaniu użytkownika",
+      "Ogranicza długość odpowiedzi modelu do 200 tokenów",
+      "Określa prędkość generowania odpowiedzi",
+      "Ustawia rozmiar pamięci RAM dla modelu"
+    ],
+    correct: 1,
+    explain: "max_new_tokens ogranicza liczbę tokenów, które model może wygenerować w jednej odpowiedzi."
+  },
+  {
+    q: "Dlaczego w formacie wiadomości używamy klucza <code>\"role\"</code> (np. <code>\"user\"</code>, <code>\"assistant\"</code>)?",
+    options: [
+      "Bo Python wymaga słowników z kluczem role",
+      "Bo model został wytrenowany na rozmowach i musi wiedzieć, kto mówi",
+      "Bo bez tego tokenizer nie może zamienić tekstu na tokeny",
+      "Bo to zabezpieczenie przed wpisaniem pustego tekstu"
+    ],
+    correct: 1,
+    explain: "Model rozróżnia role rozmówców. Dzięki temu wie, że ma odpowiadać jako asystent, a nie kontynuować tekst użytkownika."
+  },
+  {
+    q: "Po co wycinamy <code>output[0][input_ids.shape[1]:]</code> zamiast dekodować cały output?",
+    options: [
+      "Żeby odpowiedź była krótsza i szybsza",
+      "Bo cały output zawiera i pytanie, i odpowiedź - chcemy tylko odpowiedź",
+      "Bo dekodowanie całego outputu powoduje błąd",
+      "Żeby usunąć znaki specjalne z odpowiedzi"
+    ],
+    correct: 1,
+    explain: "Output modelu zawiera tokeny pytania i odpowiedzi razem. Wycinamy pytanie, żeby chatbot go nie powtarzał."
+  },
+  {
+    q: "Jak chatbot \"pamięta\" wcześniejsze wiadomości w trybie multi-turn?",
+    options: [
+      "Model zapisuje rozmowę w swoich parametrach",
+      "Przechowujemy historię w liście i za każdym razem wysyłamy ją całą do modelu",
+      "Tokenizer automatycznie zapamiętuje ostatnie 10 wiadomości",
+      "System operacyjny buforuje poprzednie odpowiedzi"
+    ],
+    correct: 1,
+    explain: "Lista messages rośnie z każdą wiadomością. Przy każdym pytaniu model dostaje pełną historię rozmowy."
+  },
+  {
+    q: "Co zwraca <code>psutil.Process().memory_info().rss</code>?",
+    options: [
+      "Liczbę tokenów przetworzonych przez model",
+      "Prędkość procesora w GHz",
+      "Ilość pamięci RAM zajmowanej przez bieżący proces w bajtach",
+      "Całkowitą ilość wolnej pamięci RAM w systemie"
+    ],
+    correct: 2,
+    explain: "rss (Resident Set Size) to ilość pamięci RAM w bajtach, którą aktualnie zajmuje nasz program."
+  },
+  {
+    q: "Co robi parametr <code>add_generation_prompt=True</code> w <code>apply_chat_template</code>?",
+    options: [
+      "Dodaje na końcu znacznik mówiący modelowi, że ma zacząć generować odpowiedź",
+      "Wyświetla użytkownikowi zachętę do wpisania pytania",
+      "Automatycznie generuje pierwsze pytanie konwersacji",
+      "Włącza tryb debugowania tokenizera"
+    ],
+    correct: 0,
+    explain: "Ten parametr dodaje specjalny token na końcu, który sygnalizuje modelowi, że teraz jego kolej na odpowiedź."
+  },
+  {
+    q: "Dlaczego nawet \"mały\" model SmolLM2-135M zajmuje setki megabajtów RAM?",
+    options: [
+      "Bo Python jest bardzo pamięciożernym językiem",
+      "Bo biblioteka transformers ładuje wiele niepotrzebnych plików",
+      "Bo model ma 135 milionów parametrów, a każdy zajmuje kilka bajtów",
+      "Bo system operacyjny rezerwuje pamięć na zapas"
+    ],
+    correct: 2,
+    explain: "135 milionów parametrów × kilka bajtów na parametr = setki MB. Duże modele mają setki miliardów parametrów."
+  }
+];
+
+let currentQ = 0;
+let score = 0;
+let answered = new Array(QUESTIONS.length).fill(false);
+
+function renderQuestion() {
+  const area = document.getElementById('quizArea');
+  const q = QUESTIONS[currentQ];
+  const letters = ['A', 'B', 'C', 'D'];
+
+  let html = `<div class="question-card" id="qCard">
+    <div class="q-number">Pytanie ${currentQ + 1} / ${QUESTIONS.length}</div>
+    <div class="q-text">${q.q}</div>
+    <div class="options">`;
+
+  q.options.forEach((opt, i) => {
+    html += `<div class="option" data-idx="${i}" onclick="selectOption(${i})">
+      <div class="option-letter">${letters[i]}</div>
+      <div class="option-text">${opt}</div>
+    </div>`;
+  });
+
+  html += `</div><div id="feedback"></div></div>`;
+  area.innerHTML = html;
+
+  updateProgress();
+}
+
+function selectOption(idx) {
+  if (answered[currentQ]) return;
+  answered[currentQ] = true;
+
+  const q = QUESTIONS[currentQ];
+  const isCorrect = idx === q.correct;
+  const card = document.getElementById('qCard');
+  const options = document.querySelectorAll('.option');
+  const feedback = document.getElementById('feedback');
+
+  if (isCorrect) score++;
+
+  options.forEach((opt, i) => {
+    opt.classList.add('disabled');
+    if (i === q.correct) opt.classList.add('is-correct');
+    if (i === idx && !isCorrect) opt.classList.add('is-wrong');
+    if (i === idx) opt.classList.add('selected');
+  });
+
+  card.classList.add(isCorrect ? 'correct' : 'wrong');
+  card.classList.add('pop');
+
+  feedback.innerHTML = `<div class="feedback ${isCorrect ? 'correct-fb' : 'wrong-fb'}">
+    ${isCorrect ? '✓' : '✗'} ${q.explain}
+  </div>`;
+
+  updateProgress();
+
+  setTimeout(() => {
+    if (currentQ < QUESTIONS.length - 1) {
+      currentQ++;
+      renderQuestion();
+      window.scrollTo({ top: document.getElementById('qCard').offsetTop - 120, behavior: 'smooth' });
+    } else {
+      showResults();
+    }
+  }, 1800);
+}
+
+function updateProgress() {
+  const answeredCount = answered.filter(Boolean).length;
+  document.getElementById('progressLabel').textContent = answered[currentQ]
+    ? `Odpowiedziano ${answeredCount} z ${QUESTIONS.length}`
+    : `Pytanie ${currentQ + 1} z ${QUESTIONS.length}`;
+  document.getElementById('progressScore').textContent = `${score} / ${QUESTIONS.length}`;
+  document.getElementById('progressFill').style.width = `${(answeredCount / QUESTIONS.length) * 100}%`;
+}
+
+function showResults() {
+  document.getElementById('quizArea').style.display = 'none';
+  const res = document.getElementById('results');
+  res.style.display = 'block';
+
+  const pct = Math.round((score / QUESTIONS.length) * 100);
+  let icon, title, text;
+
+  if (pct >= 90) {
+    icon = '🏆'; title = 'Rewelacja!'; text = 'Doskonale opanowałeś materiał z lekcji o transformers.';
+  } else if (pct >= 70) {
+    icon = '🎯'; title = 'Dobra robota!'; text = 'Większość zagadnień masz opanowanych. Warto powtórzyć kilka szczegółów.';
+  } else if (pct >= 50) {
+    icon = '💪'; title = 'Nieźle!'; text = 'Podstawy są, ale warto wrócić do konspektu i powtórzyć materiał.';
+  } else {
+    icon = '📖'; title = 'Czas na powtórkę!'; text = 'Wróć do konspektu i przejdź materiał jeszcze raz - dasz radę!';
+  }
+
+  document.getElementById('resultsIcon').textContent = icon;
+  document.getElementById('resultsTitle').textContent = title;
+  document.getElementById('resultsScore').textContent = `${score} / ${QUESTIONS.length}`;
+  document.getElementById('resultsText').textContent = text;
+}
+
+function restartQuiz() {
+  currentQ = 0;
+  score = 0;
+  answered = new Array(QUESTIONS.length).fill(false);
+  document.getElementById('quizArea').style.display = 'block';
+  document.getElementById('results').style.display = 'none';
+  renderQuestion();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+renderQuestion();
+</script>
+</body>
+</html>
