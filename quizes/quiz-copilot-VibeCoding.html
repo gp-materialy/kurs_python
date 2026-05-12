@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz - Copilot Chat & Vibe Coding</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+  :root{
+    --bg:#0a0e1a;
+    --surface:#111827;
+    --surface-hi:#1a2236;
+    --border:#243049;
+    --cyan:#22d3ee;
+    --cyan-dim:rgba(34,211,238,.12);
+    --magenta:#e879f9;
+    --magenta-dim:rgba(232,121,249,.10);
+    --green:#34d399;
+    --green-dim:rgba(52,211,153,.12);
+    --red:#fb7185;
+    --red-dim:rgba(251,113,133,.12);
+    --yellow:#fbbf24;
+    --text:#e2e8f0;
+    --text-dim:#94a3b8;
+    --radius:12px;
+  }
+
+  html{font-size:16px;scroll-behavior:smooth}
+
+  body{
+    font-family:'Outfit',sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    min-height:100vh;
+    overflow-x:hidden;
+    line-height:1.6;
+  }
+
+  /* --- starfield --- */
+  .stars{position:fixed;inset:0;pointer-events:none;z-index:0}
+  .stars span{
+    position:absolute;
+    border-radius:50%;
+    background:#fff;
+    animation:twinkle var(--d,3s) ease-in-out infinite alternate;
+    opacity:.25;
+  }
+  @keyframes twinkle{0%{opacity:.15;transform:scale(.8)}100%{opacity:.7;transform:scale(1.2)}}
+
+  /* --- layout --- */
+  .wrap{position:relative;z-index:1;max-width:680px;margin:0 auto;padding:2.5rem 1.25rem 4rem}
+
+  /* --- header --- */
+  header{text-align:center;margin-bottom:2.5rem}
+  header .badge{
+    display:inline-block;
+    font-family:'Space Mono',monospace;
+    font-size:.7rem;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--cyan);
+    background:var(--cyan-dim);
+    border:1px solid rgba(34,211,238,.25);
+    padding:.35rem .9rem;
+    border-radius:999px;
+    margin-bottom:1rem;
+  }
+  header h1{
+    font-family:'Space Mono',monospace;
+    font-size:clamp(1.5rem,5vw,2.1rem);
+    font-weight:700;
+    line-height:1.25;
+    background:linear-gradient(135deg,var(--cyan),var(--magenta));
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    background-clip:text;
+  }
+  header p{color:var(--text-dim);margin-top:.6rem;font-size:.95rem}
+
+  /* --- progress --- */
+  .progress-wrap{
+    display:flex;align-items:center;gap:.75rem;
+    margin-bottom:2rem;
+    font-family:'Space Mono',monospace;
+    font-size:.8rem;
+    color:var(--text-dim);
+  }
+  .progress-bar{flex:1;height:6px;background:var(--surface-hi);border-radius:99px;overflow:hidden}
+  .progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--cyan),var(--magenta));border-radius:99px;transition:width .45s ease}
+
+  /* --- question card --- */
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:1.75rem 1.5rem;
+    margin-bottom:1.25rem;
+    transition:opacity .3s,transform .3s;
+  }
+  .card.hidden{display:none}
+  .card .q-num{
+    font-family:'Space Mono',monospace;
+    font-size:.7rem;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--magenta);
+    margin-bottom:.6rem;
+  }
+  .card .q-text{font-size:1.05rem;font-weight:600;margin-bottom:1.25rem;line-height:1.45}
+
+  /* --- options --- */
+  .options{display:flex;flex-direction:column;gap:.6rem}
+  .opt{
+    position:relative;
+    display:flex;align-items:flex-start;gap:.75rem;
+    background:var(--surface-hi);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:.85rem 1rem;
+    cursor:pointer;
+    transition:border-color .2s,background .2s,transform .15s;
+    font-size:.93rem;
+  }
+  .opt:hover:not(.locked){border-color:var(--cyan);background:var(--cyan-dim);transform:translateX(3px)}
+  .opt .marker{
+    flex-shrink:0;
+    width:26px;height:26px;
+    border-radius:50%;
+    border:2px solid var(--border);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Space Mono',monospace;
+    font-size:.7rem;
+    font-weight:700;
+    color:var(--text-dim);
+    transition:border-color .2s,background .2s,color .2s;
+  }
+  .opt:hover:not(.locked) .marker{border-color:var(--cyan);color:var(--cyan)}
+
+  .opt.correct{border-color:var(--green);background:var(--green-dim)}
+  .opt.correct .marker{border-color:var(--green);background:var(--green);color:var(--bg)}
+  .opt.wrong{border-color:var(--red);background:var(--red-dim)}
+  .opt.wrong .marker{border-color:var(--red);background:var(--red);color:var(--bg)}
+  .opt.locked{cursor:default;opacity:.65}
+  .opt.correct.locked{opacity:1}
+
+  .explanation{
+    margin-top:1rem;
+    padding:.85rem 1rem;
+    border-left:3px solid var(--cyan);
+    background:var(--cyan-dim);
+    border-radius:0 8px 8px 0;
+    font-size:.88rem;
+    line-height:1.55;
+    color:var(--text);
+    display:none;
+  }
+  .explanation.show{display:block;animation:fadeIn .35s ease}
+
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+  /* --- next button --- */
+  .btn-next{
+    display:none;
+    margin:1.25rem auto 0;
+    font-family:'Space Mono',monospace;
+    font-size:.85rem;
+    font-weight:700;
+    letter-spacing:.04em;
+    color:var(--bg);
+    background:linear-gradient(135deg,var(--cyan),var(--magenta));
+    border:none;
+    border-radius:999px;
+    padding:.7rem 2rem;
+    cursor:pointer;
+    transition:transform .15s,box-shadow .2s;
+  }
+  .btn-next:hover{transform:scale(1.04);box-shadow:0 0 24px rgba(34,211,238,.3)}
+  .btn-next.show{display:block}
+
+  /* --- results --- */
+  .results{
+    text-align:center;
+    padding:2.5rem 1.5rem;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+  }
+  .results.hidden{display:none}
+  .results .score{
+    font-family:'Space Mono',monospace;
+    font-size:3.2rem;
+    font-weight:700;
+    background:linear-gradient(135deg,var(--cyan),var(--magenta));
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    background-clip:text;
+  }
+  .results .label{font-size:1rem;color:var(--text-dim);margin-top:.3rem}
+  .results .verdict{font-size:1.15rem;font-weight:600;margin-top:1.2rem}
+  .results .btn-restart{
+    margin-top:1.5rem;
+    font-family:'Space Mono',monospace;
+    font-size:.82rem;
+    font-weight:700;
+    color:var(--cyan);
+    background:transparent;
+    border:1px solid var(--cyan);
+    border-radius:999px;
+    padding:.6rem 1.8rem;
+    cursor:pointer;
+    transition:background .2s,color .2s;
+  }
+  .results .btn-restart:hover{background:var(--cyan);color:var(--bg)}
+
+  @media(max-width:520px){
+    .wrap{padding:1.5rem 1rem 3rem}
+    .card{padding:1.25rem 1rem}
+    header h1{font-size:1.4rem}
+  }
+</style>
+</head>
+<body>
+
+<div class="stars" id="stars"></div>
+
+<div class="wrap">
+  <header>
+    <div class="badge">Powtorka z lekcji</div>
+    <h1>Copilot Chat &amp; Vibe Coding</h1>
+    <p>10 pytań o budowaniu Space Shootera z AI</p>
+  </header>
+
+  <div class="progress-wrap">
+    <span id="prog-label">0 / 10</span>
+    <div class="progress-bar"><div class="progress-fill" id="prog-fill"></div></div>
+  </div>
+
+  <div id="quiz-container"></div>
+  <button class="btn-next" id="btn-next">Następne pytanie →</button>
+
+  <div class="results hidden" id="results">
+    <div class="score" id="res-score"></div>
+    <div class="label">poprawnych odpowiedzi</div>
+    <div class="verdict" id="res-verdict"></div>
+    <button class="btn-restart" onclick="restart()">Zagraj ponownie</button>
+  </div>
+</div>
+
+<script>
+const DATA = [
+  {
+    q: "Czym różni się Copilot Chat od autouzupełniania Copilota?",
+    opts: [
+      "Copilot Chat działa tylko offline, a autouzupełnianie wymaga internetu",
+      "Copilot Chat generuje całe bloki kodu na podstawie opisu w języku naturalnym, a autouzupełnianie podpowiada fragmenty w trakcie pisania",
+      "Autouzupełnianie jest nowsze i lepsze od Copilot Chat",
+      "Copilot Chat służy tylko do zadawania pytań, nie generuje kodu"
+    ],
+    correct: 1,
+    explain: "Autouzupełnianie reaguje na kod, który piszemy i dopisuje dalsze fragmenty. Copilot Chat to okienko rozmowy, w którym opisujemy co chcemy, a AI generuje gotowy kod - to pełna rozmowa z modelem."
+  },
+  {
+    q: "Jaki jest prawidłowy cykl pracy w vibe codingu?",
+    opts: [
+      "Napisz cały kod → przetestuj na koniec → wyślij do klienta",
+      "Opisz co chcesz → wygeneruj kod → przetestuj → popraw prompt, jeśli trzeba",
+      "Skopiuj kod z internetu → wklej → uruchom",
+      "Wygeneruj całą grę jednym promptem → oddaj gotowy projekt"
+    ],
+    correct: 1,
+    explain: "Vibe coding opiera się na cyklu: opisujemy element gry w języku naturalnym, AI generuje kod, testujemy wynik i iterujemy - poprawiamy prompt, aż efekt będzie taki jak chcieliśmy."
+  },
+  {
+    q: "Dlaczego budujemy grę element po elemencie zamiast generować ją jednym promptem?",
+    opts: [
+      "Copilot Chat nie potrafi wygenerować dużego programu",
+      "Bo tak wymagają zasady lekcji i nic więcej",
+      "Budowanie krok po kroku daje lepszą kontrolę nad wynikiem i pozwala zrozumieć, jak elementy ze sobą współpracują",
+      "Bo jeden prompt byłby za drogi"
+    ],
+    correct: 2,
+    explain: "Podejście krok po kroku pozwala kontrolować każdy element z osobna. Wiemy co robi każdy fragment, a jeśli coś nie działa, łatwo znaleźć przyczynę. Jeden wielki prompt daje mniejszą kontrolę."
+  },
+  {
+    q: "Po co od samego początku prosimy Copilot Chat o strukturę opartą na klasach?",
+    opts: [
+      "Klasy sprawiają, że program działa szybciej",
+      "Klasy porządkują kod - każda odpowiada za jeden element gry, więc łatwiej dodawać nowe rzeczy bez psucia reszty",
+      "Bez klas pygame w ogóle nie działa",
+      "Klasy są wymagane przez Copilot Chat, inaczej nie wygeneruje kodu"
+    ],
+    correct: 1,
+    explain: "Klasy takie jak Player, Enemy, Bullet i Game dzielą kod na logiczne części. Dzięki temu dodawanie nowych funkcji (np. kolizji albo power-upów) nie wymaga przepisywania całości."
+  },
+  {
+    q: "Co powinniśmy zrobić natychmiast po tym, jak Copilot Chat wygeneruje kod?",
+    opts: [
+      "Od razu poprosić o kolejny element gry",
+      "Zamknąć VS Code i otworzyć ponownie",
+      "Kliknąć Apply, zapisać plik, uruchomić grę i przetestować wynik",
+      "Skopiować kod na dysk zewnętrzny"
+    ],
+    correct: 2,
+    explain: "Po wygenerowaniu kodu zawsze wstawiamy go do pliku (Apply), zapisujemy i testujemy. Jeśli coś nie działa jak powinno, wracamy do Copilot Chat i poprawiamy prompt. Nigdy nie idziemy dalej bez testu."
+  },
+  {
+    q: "Dlaczego usuwamy pociski, które wyleciały poza ekran gry?",
+    opts: [
+      "Żeby nie kolidowały z wrogami poza ekranem",
+      "Żeby nie zajmowały pamięci - bez usuwania lista rośnie bez końca i gra zwalnia",
+      "Pociski poza ekranem powodują błąd pygame",
+      "To wymóg systemu operacyjnego"
+    ],
+    correct: 1,
+    explain: "Każdy pocisk to obiekt w pamięci. Gdybyśmy ich nie usuwali po opuszczeniu ekranu, z każdym strzałem lista pocisków rosłaby bez końca. Po pewnym czasie gra zacząłaby zauważalnie zwalniać."
+  },
+  {
+    q: "Po co dodajemy nietykalność gracza po stracie życia?",
+    opts: [
+      "Żeby gra była łatwiejsza dla początkujących",
+      "Żeby jeden wróg nie zabrał kilku żyć naraz, bo gracz dotykałby go przez więcej niż jedną klatkę",
+      "Żeby sprite gracza wyglądał ciekawiej",
+      "Żeby Copilot Chat miał więcej kodu do wygenerowania"
+    ],
+    correct: 1,
+    explain: "Bez nietykalności zderzenie z wrogiem trwające kilka klatek gry mogłoby zabrać wszystkie życia naraz. Dwusekundowa nietykalność z miganiem chroni gracza i daje mu wizualny sygnał, że jest chwilowo bezpieczny."
+  },
+  {
+    q: "Co robi pętla gry (game loop) w każdej klatce?",
+    opts: [
+      "Tylko rysuje obraz na ekranie",
+      "Sprawdza naciśnięte klawisze, przesuwa obiekty i rysuje nowy obraz na ekranie",
+      "Łączy się z internetem i pobiera nowe zasoby",
+      "Zapisuje stan gry do pliku"
+    ],
+    correct: 1,
+    explain: "Pętla gry działa w nieskończoność z częstotliwością 60 klatek na sekundę. W każdej klatce obsługuje wejście gracza (klawisze), aktualizuje pozycje obiektów (ruch, kolizje) i rysuje wszystko od nowa na ekranie."
+  },
+  {
+    q: "Jak Copilot Chat wie, do którego pliku dodać nowy kod?",
+    opts: [
+      "Zawsze tworzy nowy plik dla każdego prompta",
+      "Widzi kontekst otwartego pliku w edytorze, dlatego ważne jest, żeby main.py był otwarty",
+      "Nie wie - trzeba mu podać pełną ścieżkę systemową",
+      "Czyta wszystkie pliki na dysku komputera"
+    ],
+    correct: 1,
+    explain: "Copilot Chat korzysta z kontekstu otwartego pliku w VS Code. Dlatego przed każdym promptem upewniamy się, że main.py jest otwarty w edytorze. Możemy też wskazać plik w treści prompta (np. \"Dodaj do main.py...\")."
+  },
+  {
+    q: "Dlaczego po wygenerowaniu kodu warto poprosić Copilot Chat o wyjaśnienie tego, co napisał?",
+    opts: [
+      "Żeby sprawdzić, czy Copilot nie popełnił błędu ortograficznego",
+      "Vibe coding nie zwalnia z rozumienia kodu - pytanie o wyjaśnienie buduje nawyk świadomej pracy z AI",
+      "Bo Copilot generuje komentarze tylko na żądanie",
+      "Żeby wydłużyć lekcję"
+    ],
+    correct: 1,
+    explain: "Generowanie kodu przez AI nie oznacza, że nie musimy go rozumieć. Pytanie Copilot Chat o wyjaśnienie buduje nawyk świadomej pracy - wiemy co robi każdy fragment, a w razie błędu potrafimy go zlokalizować."
+  }
+];
+
+let current = 0, score = 0, answered = false;
+
+function init() {
+  // starfield
+  const sf = document.getElementById('stars');
+  sf.innerHTML = '';
+  for (let i = 0; i < 80; i++) {
+    const s = document.createElement('span');
+    const size = Math.random() * 2.5 + 1;
+    s.style.cssText = `width:${size}px;height:${size}px;top:${Math.random()*100}%;left:${Math.random()*100}%;--d:${2+Math.random()*4}s;animation-delay:${Math.random()*3}s`;
+    sf.appendChild(s);
+  }
+  renderQuestion();
+}
+
+function renderQuestion() {
+  const c = document.getElementById('quiz-container');
+  const d = DATA[current];
+  const letters = ['A','B','C','D'];
+  c.innerHTML = `
+    <div class="card" id="qcard">
+      <div class="q-num">Pytanie ${current+1} z ${DATA.length}</div>
+      <div class="q-text">${d.q}</div>
+      <div class="options">
+        ${d.opts.map((o,i) => `
+          <div class="opt" data-idx="${i}" onclick="pick(this,${i})">
+            <div class="marker">${letters[i]}</div>
+            <div>${o}</div>
+          </div>`).join('')}
+      </div>
+      <div class="explanation" id="expl">${d.explain}</div>
+    </div>`;
+  answered = false;
+  document.getElementById('btn-next').classList.remove('show');
+  updateProgress();
+}
+
+function pick(el, idx) {
+  if (answered) return;
+  answered = true;
+  const correct = DATA[current].correct;
+  const opts = document.querySelectorAll('.opt');
+  opts.forEach(o => o.classList.add('locked'));
+  if (idx === correct) { el.classList.add('correct'); score++; }
+  else { el.classList.add('wrong'); opts[correct].classList.add('correct'); }
+  document.getElementById('expl').classList.add('show');
+  const btn = document.getElementById('btn-next');
+  btn.textContent = current < DATA.length - 1 ? 'Następne pytanie →' : 'Zobacz wynik →';
+  btn.classList.add('show');
+  updateProgress();
+}
+
+document.getElementById('btn-next').addEventListener('click', () => {
+  current++;
+  if (current < DATA.length) renderQuestion();
+  else showResults();
+});
+
+function updateProgress() {
+  const done = answered ? current + 1 : current;
+  document.getElementById('prog-label').textContent = `${done} / ${DATA.length}`;
+  document.getElementById('prog-fill').style.width = `${(done/DATA.length)*100}%`;
+}
+
+function showResults() {
+  document.getElementById('quiz-container').innerHTML = '';
+  document.getElementById('btn-next').classList.remove('show');
+  document.getElementById('prog-fill').style.width = '100%';
+  document.getElementById('prog-label').textContent = `${DATA.length} / ${DATA.length}`;
+  const r = document.getElementById('results');
+  r.classList.remove('hidden');
+  document.getElementById('res-score').textContent = `${score} / ${DATA.length}`;
+  const pct = score / DATA.length;
+  let v = '';
+  if (pct === 1) v = '🚀 Perfekcyjnie! Vibe coding nie ma przed Tobą tajemnic!';
+  else if (pct >= 0.8) v = '🎯 Świetny wynik! Masz solidne podstawy vibe codingu.';
+  else if (pct >= 0.6) v = '👍 Dobra robota! Warto powtórzyć kilka zagadnień.';
+  else if (pct >= 0.4) v = '💡 Niezły start - przejrzyj materiał z lekcji jeszcze raz.';
+  else v = '📖 Warto wrócić do lekcji i powtórzyć kluczowe pojęcia!';
+  document.getElementById('res-verdict').textContent = v;
+}
+
+function restart() {
+  current = 0; score = 0;
+  document.getElementById('results').classList.add('hidden');
+  renderQuestion();
+}
+
+init();
+</script>
+</body>
+</html>
