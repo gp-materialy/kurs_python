@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz - Tworzymy aplikacje okienkowe z tkinter</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --orange:#F58220;--orange-light:#F8E2CB;--orange-mid:#EEB27C;
+  --purple:#6F499D;--purple-light:#D4CFE5;--purple-mid:#9786BA;
+  --dark:#2D2D2D;--gray:#F0F0F0;--white:#FFFFFF;
+  --correct:#34C759;--wrong:#FF3B30;
+}
+body{font-family:'Outfit',sans-serif;background:var(--gray);color:var(--dark);min-height:100vh;overflow-x:hidden}
+
+.bg-blobs{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.bg-blobs span{position:absolute;border-radius:50%;filter:blur(120px);opacity:.18}
+.bg-blobs span:nth-child(1){width:600px;height:600px;background:var(--orange);top:-200px;right:-100px;animation:drift 20s ease-in-out infinite alternate}
+.bg-blobs span:nth-child(2){width:500px;height:500px;background:var(--purple);bottom:-150px;left:-100px;animation:drift 25s ease-in-out infinite alternate-reverse}
+@keyframes drift{0%{transform:translate(0,0)}100%{transform:translate(60px,40px)}}
+
+.container{position:relative;z-index:1;max-width:740px;margin:0 auto;padding:32px 20px 60px}
+
+header{text-align:center;margin-bottom:40px}
+header h1{font-size:clamp(1.6rem,4vw,2.4rem);font-weight:800;line-height:1.2;color:var(--dark);margin-bottom:8px}
+header h1 span{background:linear-gradient(135deg,var(--orange),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+header p{color:#666;font-size:.95rem;margin-top:6px}
+
+.progress-wrap{background:var(--white);border-radius:99px;height:10px;margin-bottom:36px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.progress-bar{height:100%;width:0;background:linear-gradient(90deg,var(--orange),var(--purple));border-radius:99px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+
+.score-strip{display:flex;justify-content:center;gap:24px;margin-bottom:32px;font-weight:600;font-size:.95rem}
+.score-strip div{display:flex;align-items:center;gap:6px}
+.score-strip .dot{width:12px;height:12px;border-radius:50%}
+.dot-correct{background:var(--correct)}
+.dot-wrong{background:var(--wrong)}
+
+.card{background:var(--white);border-radius:20px;padding:32px;box-shadow:0 4px 24px rgba(0,0,0,.06);margin-bottom:24px;position:relative;overflow:hidden;transition:transform .25s,box-shadow .25s}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--orange),var(--purple));opacity:0;transition:opacity .3s}
+.card.active::before{opacity:1}
+
+.q-num{font-family:'JetBrains Mono',monospace;font-size:.75rem;font-weight:500;color:var(--purple-mid);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px}
+.q-text{font-size:1.1rem;font-weight:600;line-height:1.5;margin-bottom:20px}
+.q-text code{font-family:'JetBrains Mono',monospace;background:var(--gray);padding:2px 7px;border-radius:6px;font-size:.92em;font-weight:500;color:var(--purple)}
+
+.options{display:flex;flex-direction:column;gap:10px}
+.opt-btn{display:flex;align-items:flex-start;gap:12px;width:100%;padding:14px 16px;border:2px solid #e0e0e0;border-radius:14px;background:var(--white);cursor:pointer;text-align:left;font-family:'Outfit',sans-serif;font-size:.97rem;line-height:1.45;transition:border-color .2s,background .2s,transform .15s;position:relative}
+.opt-btn:hover:not(.locked){border-color:var(--orange-mid);background:var(--orange-light);transform:translateX(4px)}
+.opt-btn .letter{flex-shrink:0;width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;background:var(--gray);color:var(--dark);transition:background .25s,color .25s}
+.opt-btn code{font-family:'JetBrains Mono',monospace;background:var(--gray);padding:1px 5px;border-radius:4px;font-size:.88em;color:var(--purple)}
+
+.opt-btn.correct{border-color:var(--correct);background:#eafbef}
+.opt-btn.correct .letter{background:var(--correct);color:#fff}
+.opt-btn.wrong{border-color:var(--wrong);background:#fff0f0}
+.opt-btn.wrong .letter{background:var(--wrong);color:#fff}
+
+.explanation{margin-top:14px;padding:14px 16px;border-radius:12px;background:var(--gray);font-size:.9rem;line-height:1.55;display:none;animation:slideIn .3s ease}
+.explanation.show{display:block}
+.explanation code{font-family:'JetBrains Mono',monospace;background:#e0dce8;padding:1px 5px;border-radius:4px;font-size:.88em;color:var(--purple)}
+@keyframes slideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+
+.result-screen{display:none;text-align:center;padding:48px 24px}
+.result-screen.show{display:block}
+.result-circle{width:160px;height:160px;border-radius:50%;margin:0 auto 24px;display:flex;align-items:center;justify-content:center;font-size:2.8rem;font-weight:800;position:relative}
+.result-circle::before{content:'';position:absolute;inset:0;border-radius:50%;background:conic-gradient(var(--orange) calc(var(--pct)*1%),var(--gray) 0);mask:radial-gradient(farthest-side,transparent calc(100% - 10px),#000 calc(100% - 9px));-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 10px),#000 calc(100% - 9px))}
+.result-msg{font-size:1.5rem;font-weight:700;margin-bottom:8px}
+.result-sub{color:#666;font-size:1rem;margin-bottom:32px}
+.restart-btn{display:inline-flex;align-items:center;gap:8px;padding:14px 36px;border:none;border-radius:99px;background:linear-gradient(135deg,var(--orange),var(--purple));color:#fff;font-family:'Outfit',sans-serif;font-size:1rem;font-weight:700;cursor:pointer;transition:transform .2s,box-shadow .2s}
+.restart-btn:hover{transform:scale(1.04);box-shadow:0 6px 20px rgba(245,130,32,.35)}
+
+.hidden{display:none}
+</style>
+</head>
+<body>
+
+<div class="bg-blobs"><span></span><span></span></div>
+
+<div class="container">
+  <header>
+    <h1>Quiz: <span>tkinter</span></h1>
+    <p>Sprawdź, ile zapamiętałeś z lekcji o aplikacjach okienkowych</p>
+  </header>
+
+  <div class="progress-wrap"><div class="progress-bar" id="progress"></div></div>
+
+  <div class="score-strip">
+    <div><span class="dot dot-correct"></span> <span id="scoreOk">0</span> / 12</div>
+    <div><span class="dot dot-wrong"></span> <span id="scoreNo">0</span> / 12</div>
+  </div>
+
+  <div id="quizArea"></div>
+
+  <div class="result-screen" id="resultScreen">
+    <div class="result-circle" id="resultCircle" style="--pct:0"><span id="resultPct"></span></div>
+    <div class="result-msg" id="resultMsg"></div>
+    <div class="result-sub" id="resultSub"></div>
+    <button class="restart-btn" onclick="restart()">↻ Spróbuj ponownie</button>
+  </div>
+</div>
+
+<script>
+const DATA=[
+{q:'Co robi wywołanie <code>tk.Tk()</code>?',
+ o:['Tworzy główne okno aplikacji','Importuje bibliotekę tkinter','Uruchamia pętlę zdarzeń','Zamyka wszystkie otwarte okna'],
+ c:0,e:'<code>tk.Tk()</code> tworzy główne okno aplikacji. To zawsze pierwszy krok przy budowaniu GUI w tkinter.'},
+
+{q:'Do czego służy metoda <code>mainloop()</code>?',
+ o:['Tworzy nowe okno w tle','Uruchamia pętlę zdarzeń, dzięki której okno reaguje na działania użytkownika','Zatrzymuje program na 1 sekundę','Wyświetla okno w trybie pełnoekranowym'],
+ c:1,e:'<code>mainloop()</code> uruchamia nieskończoną pętlę zdarzeń - okno pozostaje otwarte i czeka na kliknięcia, wpisywanie tekstu itd.'},
+
+{q:'Który widget służy do wyświetlania tekstu w oknie?',
+ o:['<code>tk.Entry</code>','<code>tk.Button</code>','<code>tk.Label</code>','<code>tk.Text</code>'],
+ c:2,e:'<code>tk.Label</code> tworzy etykietę, czyli widget wyświetlający statyczny tekst. <code>Entry</code> i <code>Text</code> to pola do wpisywania.'},
+
+{q:'Dlaczego piszemy <code>command=on_click</code>, a nie <code>command=on_click()</code>?',
+ o:['Bo tkinter nie obsługuje nawiasów','Bo chcemy opóźnić import funkcji','Bo tak wymaga składnia Pythona 3','Bo przekazujemy funkcję jako obiekt, a nie wywołujemy jej'],
+ c:3,e:'Bez nawiasów przekazujemy referencję do funkcji. Z nawiasami funkcja uruchomiłaby się natychmiast przy tworzeniu przycisku.'},
+
+{q:'Co zwraca <code>entry.get()</code>?',
+ o:['Tekst aktualnie wpisany w pole','Nazwę widgetu','Ostatni kliknięty przycisk','Numer wiersza kursora'],
+ c:0,e:'Metoda <code>.get()</code> zwraca string z aktualną zawartością pola <code>Entry</code>.'},
+
+{q:'Jak zmienić tekst etykiety po jej utworzeniu?',
+ o:['<code>label.text = "nowy"</code>','<code>label.config(text="nowy")</code>','<code>label.set("nowy")</code>','<code>label.update("nowy")</code>'],
+ c:1,e:'Metoda <code>config()</code> pozwala modyfikować dowolne właściwości widgetu już po jego utworzeniu.'},
+
+{q:'Co robi <code>widget.pack(pady=10)</code>?',
+ o:['Ukrywa widget z marginesem','Tworzy kopię widgetu','Umieszcza widget w oknie i dodaje 10 pikseli odstępu w pionie','Przesuwa widget o 10 pikseli w prawo'],
+ c:2,e:'<code>pack()</code> rozmieszcza widget w oknie. Parametr <code>pady</code> dodaje pionowy odstęp (padding) w pikselach.'},
+
+{q:'Czym różni się metoda <code>grid</code> od <code>pack</code>?',
+ o:['<code>grid</code> działa tylko na przyciskach','<code>grid</code> nie wymaga podania rodzica','<code>grid</code> jest szybszy od <code>pack</code>','<code>grid</code> pozwala ustawiać widgety w wierszach i kolumnach'],
+ c:3,e:'<code>pack</code> układa widgety sekwencyjnie (domyślnie z góry na dół), a <code>grid</code> pozwala precyzyjnie ustawić je w tabeli wierszy i kolumn.'},
+
+{q:'Co się stanie, jeśli nie wywołamy <code>mainloop()</code>?',
+ o:['Okno pojawi się na chwilę i natychmiast się zamknie','Okno otworzy się normalnie, ale bez przycisków','Program wyświetli błąd składni','Okno otworzy się w trybie tylko do odczytu'],
+ c:0,e:'Bez <code>mainloop()</code> program dojdzie do końca i zakończy działanie, zamykając okno zanim zdążymy je zobaczyć.'},
+
+{q:'Co robi <code>window.geometry("400x300")</code>?',
+ o:['Ustawia pozycję okna na ekranie','Ustawia szerokość na 400 i wysokość na 300 pikseli','Ustawia minimalny rozmiar okna','Blokuje możliwość zmiany rozmiaru'],
+ c:1,e:'<code>geometry()</code> określa początkowy rozmiar okna. Format to <code>"szerokośćxwysokość"</code> w pikselach.'},
+
+{q:'Czym jest widget w kontekście tkinter?',
+ o:['Skrótem od "window gadget"','Typem zmiennej w Pythonie','Elementem graficznego interfejsu, np. przyciskiem lub etykietą','Funkcją obsługującą zdarzenia myszy'],
+ c:2,e:'Widget to każdy element graficzny interfejsu - przycisk, etykieta, pole tekstowe, suwak itd. Słowo pochodzi od "window gadget".'},
+
+{q:'Co robi <code>entry.delete(0, tk.END)</code>?',
+ o:['Usuwa widget z okna','Ukrywa pole tekstowe','Resetuje kolor tła pola','Usuwa cały tekst wpisany w pole'],
+ c:3,e:'<code>delete(0, tk.END)</code> kasuje zawartość pola od pozycji 0 (początek) do <code>tk.END</code> (koniec), czyli cały wpisany tekst.'}
+];
+
+let answered=0,correct=0,wrong=0;
+
+function init(){
+  const area=document.getElementById('quizArea');
+  area.innerHTML='';
+  DATA.forEach((d,i)=>{
+    const letters=['A','B','C','D'];
+    let html=`<div class="card${i===0?' active':''}" id="card${i}">
+      <div class="q-num">Pytanie ${i+1} z ${DATA.length}</div>
+      <div class="q-text">${d.q}</div>
+      <div class="options">`;
+    d.o.forEach((opt,j)=>{
+      html+=`<button class="opt-btn" data-q="${i}" data-o="${j}" onclick="pick(this)">
+        <span class="letter">${letters[j]}</span><span>${opt}</span></button>`;
+    });
+    html+=`</div><div class="explanation" id="exp${i}">${d.e}</div></div>`;
+    area.insertAdjacentHTML('beforeend',html);
+  });
+  updateUI();
+}
+
+function pick(btn){
+  if(btn.classList.contains('locked'))return;
+  const qi=+btn.dataset.q, oi=+btn.dataset.o;
+  const card=document.getElementById('card'+qi);
+  const btns=card.querySelectorAll('.opt-btn');
+  btns.forEach(b=>b.classList.add('locked'));
+
+  if(oi===DATA[qi].c){
+    btn.classList.add('correct');correct++;
+  } else {
+    btn.classList.add('wrong');
+    btns[DATA[qi].c].classList.add('correct');
+    wrong++;
+  }
+  answered++;
+  document.getElementById('exp'+qi).classList.add('show');
+  updateUI();
+
+  if(answered<DATA.length){
+    const next=document.getElementById('card'+(qi+1));
+    if(next){
+      next.classList.add('active');
+      setTimeout(()=>next.scrollIntoView({behavior:'smooth',block:'center'}),350);
+    }
+  } else {
+    setTimeout(showResult,800);
+  }
+}
+
+function updateUI(){
+  document.getElementById('progress').style.width=(answered/DATA.length*100)+'%';
+  document.getElementById('scoreOk').textContent=correct;
+  document.getElementById('scoreNo').textContent=wrong;
+}
+
+function showResult(){
+  document.getElementById('quizArea').classList.add('hidden');
+  const pct=Math.round(correct/DATA.length*100);
+  const screen=document.getElementById('resultScreen');
+  screen.classList.add('show');
+
+  const circle=document.getElementById('resultCircle');
+  let cur=0;
+  const step=()=>{if(cur<pct){cur++;circle.style.setProperty('--pct',cur);requestAnimationFrame(step);}};
+  requestAnimationFrame(step);
+
+  document.getElementById('resultPct').textContent=pct+'%';
+  let msg,sub;
+  if(pct===100){msg='Perfekcyjnie! 🏆';sub='Znasz tkinter na wylot!';}
+  else if(pct>=75){msg='Świetny wynik! 🎉';sub='Podstawy tkinter masz opanowane.';}
+  else if(pct>=50){msg='Nieźle! 👍';sub='Warto powtórzyć kilka zagadnień.';}
+  else{msg='Trzeba poćwiczyć 💪';sub='Wróć do lekcji i spróbuj ponownie!';}
+  document.getElementById('resultMsg').textContent=msg;
+  document.getElementById('resultSub').textContent=sub;
+}
+
+function restart(){
+  answered=0;correct=0;wrong=0;
+  document.getElementById('resultScreen').classList.remove('show');
+  document.getElementById('quizArea').classList.remove('hidden');
+  init();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+init();
+</script>
+</body>
+</html>
