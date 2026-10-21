@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz - Spracherkennung</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0a0f; font-family: 'DM Sans', 'Segoe UI', sans-serif; padding: 40px 20px; min-height: 100vh; }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  .header { text-align: center; margin-bottom: 48px; }
+  .badge { display: inline-block; background: linear-gradient(135deg, #f97316, #fb923c); border-radius: 12px; padding: 8px 20px; margin-bottom: 16px; font-size: 13px; font-weight: 700; color: #0a0a0f; letter-spacing: 0.08em; text-transform: uppercase; }
+  h1 { color: #f1f1f4; font-size: 28px; font-weight: 700; margin-bottom: 8px; line-height: 1.3; }
+  .sub { color: #71717a; font-size: 15px; }
+  .card { background: #141419; border: 1px solid #27272a; border-radius: 16px; padding: 28px; margin-bottom: 16px; transition: border-color 0.3s; }
+  .card.correct { border-color: #22c55e40; }
+  .card.wrong { border-color: #ef444440; }
+  .q-row { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 20px; }
+  .q-num { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 500; color: #f97316; background: #f9731615; border-radius: 8px; padding: 4px 10px; flex-shrink: 0; }
+  .q-text { color: #e4e4e7; font-size: 15px; font-weight: 500; line-height: 1.55; }
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 0; }
+  .opts.has-action { margin-bottom: 16px; }
+  .opt { display: flex; align-items: center; gap: 10px; background: #1c1c22; border: 1px solid #27272a; border-radius: 10px; padding: 10px 14px; cursor: pointer; text-align: left; transition: all 0.2s; font-family: inherit; font-size: 14px; width: 100%; }
+  .opt:hover:not(.locked) { border-color: #3f3f46; }
+  .opt .letter { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: #a1a1aa; opacity: 0.7; flex-shrink: 0; }
+  .opt .label { color: #a1a1aa; line-height: 1.45; }
+  .opt.selected { background: #f9731620; border-color: #f97316; }
+  .opt.selected .letter, .opt.selected .label { color: #fb923c; }
+  .opt.reveal-correct { background: #22c55e15; border-color: #22c55e60; }
+  .opt.reveal-correct .letter, .opt.reveal-correct .label { color: #4ade80; }
+  .opt.reveal-wrong { background: #ef444415; border-color: #ef444460; }
+  .opt.reveal-wrong .letter, .opt.reveal-wrong .label { color: #f87171; }
+  .opt.locked { cursor: default; }
+  .btn-check { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; border: none; border-radius: 8px; padding: 8px 20px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .feedback { font-size: 13px; font-weight: 600; }
+  .feedback.ok { color: #4ade80; }
+  .feedback.nope { color: #f87171; }
+  .summary { text-align: center; background: #141419; border: 1px solid #27272a; border-radius: 16px; padding: 32px; margin-top: 8px; }
+  .score { font-size: 48px; font-weight: 700; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 8px; }
+  .score.high { background-image: linear-gradient(135deg, #4ade80, #22c55e); }
+  .score.mid { background-image: linear-gradient(135deg, #fb923c, #f97316); }
+  .score.low { background-image: linear-gradient(135deg, #f87171, #ef4444); }
+  .summary p { color: #a1a1aa; font-size: 15px; margin-bottom: 20px; }
+  .btn-reset { background: #1c1c22; color: #a1a1aa; border: 1px solid #27272a; border-radius: 8px; padding: 8px 20px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  @media (max-width: 600px) { .opts { grid-template-columns: 1fr; } h1 { font-size: 22px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="badge">Wiederholungsquiz</div>
+    <h1>Spracherkennung - virtueller Schreiber</h1>
+    <p class="sub">10 Fragen · wähle eine Antwort und klicke auf „Prüfen“</p>
+  </div>
+  <div id="quiz"></div>
+  <div id="summary" style="display:none"></div>
+</div>
+<script>
+const QS = [
+  { q: "Mit welcher Bibliothek nehmen wir in unserem Projekt Ton vom Mikrofon auf?", o: ["SpeechRecognition", "scipy", "sounddevice", "numpy"], c: 2 },
+  { q: "Was bedeutet der Wert SAMPLE_RATE = 44100?", o: ["Die maximale Dateigröße in Bytes", "Die Anzahl der Tonmessungen pro Sekunde", "Die Aufnahmedauer in Millisekunden", "Die Anzahl der Audiokanäle"], c: 1 },
+  { q: "Warum multiplizieren wir die Audiodaten vor dem Speichern als WAV mit 32767?", o: ["Damit die Datei kleiner wird", "Damit der Ton lauter wird", "Um Gleitkommazahlen in das 16-Bit-PCM-Format umzuwandeln", "Um Rauschen aus der Aufnahme zu entfernen"], c: 2 },
+  { q: "Welchen Parameter der Methode recognize_google() setzen wir auf \"en-US\"?", o: ["encoding", "format", "language", "dialect"], c: 2 },
+  { q: "Was macht die Methode lower(), die in der Funktion process_commands auf dem Text aufgerufen wird?", o: ["Sie entfernt Leerzeichen aus dem Text", "Sie wandelt den gesamten Text in Kleinbuchstaben um", "Sie kürzt den Text auf 100 Zeichen", "Sie wandelt Ziffern in Wörter um"], c: 1 },
+  { q: "Welche Ausnahme fangen wir ab, wenn Google die Sprache nicht erkennt?", o: ["sr.AudioError", "sr.TimeoutError", "sr.RequestError", "sr.UnknownValueError"], c: 3 },
+  { q: "Was macht der Sprachbefehl \"new line\"?", o: ["Er beendet das Diktat", "Er fügt einen neuen Absatz ein (ein Zeilenumbruchzeichen)", "Er fügt einen Punkt ein", "Er löscht den letzten Satz"], c: 1 },
+  { q: "Warum prüfen wir den Befehl \"stop\", BEVOR wir process_commands aufrufen?", o: ["Damit das Programm schneller läuft", "Weil process_commands das Wort \"stop\" ersetzen oder entfernen könnte", "Weil \"stop\" in Python ein reserviertes Wort ist", "Damit das Wort \"stop\" nicht in der Datei gespeichert wird"], c: 1 },
+  { q: "Wie filtern wir die Geräteliste, damit nur Mikrofone angezeigt werden?", o: ["Wir prüfen, ob der Name das Wort \"Mikrofon\" enthält", "Wir prüfen, ob max_output_channels > 0 ist", "Wir prüfen, ob max_input_channels > 0 ist", "Wir prüfen, ob das Gerät über USB angeschlossen ist"], c: 2 },
+  { q: "Welche Kodierung geben wir beim Speichern der Notiz in einer Textdatei an?", o: ["ascii", "utf-8", "latin-1", "windows-1252"], c: 1 }
+];
+const L = ["A","B","C","D"];
+const answers = {}, revealed = {};
+let totalRevealed = 0;
+
+function render() {
+  const quiz = document.getElementById("quiz");
+  quiz.innerHTML = "";
+  QS.forEach((item, qi) => {
+    const picked = answers[qi];
+    const isRev = revealed[qi];
+    const isOk = picked === item.c;
+    const card = document.createElement("div");
+    card.className = "card" + (isRev ? (isOk ? " correct" : " wrong") : "");
+
+    let optsHtml = "";
+    item.o.forEach((opt, oi) => {
+      let cls = "opt";
+      if (isRev) {
+        cls += " locked";
+        if (oi === item.c) cls += " reveal-correct";
+        else if (oi === picked) cls += " reveal-wrong";
+      } else if (picked === oi) {
+        cls += " selected";
+      }
+      optsHtml += `<button class="${cls}" data-qi="${qi}" data-oi="${oi}"><span class="letter">${L[oi]}</span><span class="label">${opt}</span></button>`;
+    });
+
+    let action = "";
+    if (picked !== undefined && !isRev) action = `<button class="btn-check" data-qi="${qi}">Prüfen</button>`;
+    if (isRev) action = `<div class="feedback ${isOk ? "ok" : "nope"}">${isOk ? "✓ Richtige Antwort!" : "✗ Richtige Antwort: " + L[item.c]}</div>`;
+
+    card.innerHTML = `<div class="q-row"><span class="q-num">${qi+1}</span><p class="q-text">${item.q}</p></div><div class="opts${(picked !== undefined) ? " has-action" : ""}">${optsHtml}</div>${action}`;
+    quiz.appendChild(card);
+  });
+
+  quiz.querySelectorAll(".opt:not(.locked)").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const qi = +btn.dataset.qi, oi = +btn.dataset.oi;
+      if (revealed[qi]) return;
+      answers[qi] = oi;
+      render();
+    });
+  });
+  quiz.querySelectorAll(".btn-check").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const qi = +btn.dataset.qi;
+      revealed[qi] = true;
+      totalRevealed++;
+      render();
+      if (totalRevealed === QS.length) showSummary();
+    });
+  });
+}
+
+function showSummary() {
+  let correct = 0;
+  QS.forEach((_, qi) => { if (answers[qi] === QS[qi].c) correct++; });
+  const cls = correct >= 8 ? "high" : correct >= 5 ? "mid" : "low";
+  const msg = correct === 10 ? "Perfekt! Alles klar." : correct >= 8 ? "Super Ergebnis!" : correct >= 5 ? "Nicht schlecht, aber ein paar Dinge solltest du wiederholen." : "Geh den Stoff noch einmal durch und versuche es erneut.";
+  const el = document.getElementById("summary");
+  el.style.display = "block";
+  el.innerHTML = `<div class="summary"><div class="score ${cls}">${correct}/${QS.length}</div><p>${msg}</p><button class="btn-reset" onclick="resetQuiz()">Erneut versuchen</button></div>`;
+}
+
+function resetQuiz() {
+  Object.keys(answers).forEach(k => delete answers[k]);
+  Object.keys(revealed).forEach(k => delete revealed[k]);
+  totalRevealed = 0;
+  document.getElementById("summary").style.display = "none";
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
