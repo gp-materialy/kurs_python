@@ -327,16 +327,66 @@
   }
 
   .pop { animation: pop 0.3s ease-out; }
+
+  /* ─── Language switcher ─── */
+  .lang-switch {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    width: fit-content;
+    margin: 0 auto 28px;
+    padding: 5px;
+    background: var(--white);
+    border-radius: 100px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    animation: fadeDown 0.6s ease-out;
+  }
+
+  .lang-btn {
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    min-width: 48px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 100px;
+    background: transparent;
+    color: #777;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s;
+  }
+
+  .lang-btn:hover:not(.active) { background: var(--purple-glow); color: var(--purple); }
+
+  .lang-btn.active {
+    background: linear-gradient(135deg, var(--orange), var(--purple));
+    color: white;
+    box-shadow: 0 4px 12px rgba(245,130,32,0.25);
+    cursor: default;
+  }
+
+  .lang-btn:focus-visible { outline: 3px solid var(--purple-light); outline-offset: 2px; }
+
+  /* no entrance animation when the card is only re-rendered (language change) */
+  .question-card.no-anim, .feedback.no-anim { animation: none; }
 </style>
 </head>
 <body>
 <div class="bg-pattern"></div>
 <div class="container">
 
+  <div class="lang-switch" role="group" aria-label="Język / Language / Idioma / Sprache">
+    <button type="button" class="lang-btn" data-lang="pl" lang="pl" title="Polski" aria-label="Polski">PL</button>
+    <button type="button" class="lang-btn" data-lang="en" lang="en" title="English" aria-label="English">EN</button>
+    <button type="button" class="lang-btn" data-lang="es" lang="es" title="Español" aria-label="Español">ES</button>
+    <button type="button" class="lang-btn" data-lang="de" lang="de" title="Deutsch" aria-label="Deutsch">DE</button>
+  </div>
+
   <div class="header">
-    <div class="header-tag">Lekcja 37 — Python</div>
-    <h1>Transformers: <span>inteligentny chatbot</span></h1>
-    <p>10 pytań powtórkowych z lekcji</p>
+    <div class="header-tag" id="headerTag">Lekcja 37 — Python</div>
+    <h1 id="headerTitle">Transformers: <span>inteligentny chatbot</span></h1>
+    <p id="headerSub">10 pytań powtórkowych z lekcji</p>
   </div>
 
   <div class="progress-wrap">
@@ -355,136 +405,559 @@
     <h2 id="resultsTitle"></h2>
     <div class="results-score" id="resultsScore"></div>
     <p id="resultsText"></p>
-    <button class="btn-restart" onclick="restartQuiz()">Spróbuj ponownie</button>
+    <button class="btn-restart" id="btnRestart" onclick="restartQuiz()">Spróbuj ponownie</button>
   </div>
 
 </div>
 
 <script>
-const QUESTIONS = [
-  {
-    q: "Co robi klasa <code>AutoTokenizer</code> z biblioteki transformers?",
-    options: [
-      "Generuje odpowiedzi modelu na pytania użytkownika",
-      "Zamienia tekst na tokeny (liczby) zrozumiałe dla modelu",
-      "Trenuje model językowy na nowych danych",
-      "Mierzy zużycie pamięci RAM programu"
-    ],
-    correct: 1,
-    explain: "AutoTokenizer zamienia tekst na ciąg liczb (tokenów), które model potrafi przetworzyć."
-  },
-  {
-    q: "Co oznacza skrót \"CausalLM\" w nazwie <code>AutoModelForCausalLM</code>?",
-    options: [
-      "Model klasyfikujący tekst do kategorii",
-      "Model generujący tekst token po tokenie na podstawie poprzednich",
-      "Model tłumaczący tekst między językami",
-      "Model kompresujący dane tekstowe"
-    ],
-    correct: 1,
-    explain: "CausalLM to model generujący tekst sekwencyjnie - przewiduje kolejny token na podstawie wcześniejszych."
-  },
-  {
-    q: "Dlaczego pierwsze uruchomienie programu z modelem trwa znacznie dłużej niż kolejne?",
-    options: [
-      "Python musi się skompilować przy pierwszym uruchomieniu",
-      "Model jest pobierany z internetu i zapisywany lokalnie na dysku",
-      "Biblioteka transformers instaluje się automatycznie",
-      "System operacyjny blokuje nowe programy przy pierwszym uruchomieniu"
-    ],
-    correct: 1,
-    explain: "Przy pierwszym uruchomieniu pliki modelu są pobierane z Hugging Face. Kolejne uruchomienia ładują je z dysku."
-  },
-  {
-    q: "Co robi parametr <code>max_new_tokens=200</code> w metodzie <code>model.generate</code>?",
-    options: [
-      "Ustawia maksymalną liczbę słów w pytaniu użytkownika",
-      "Ogranicza długość odpowiedzi modelu do 200 tokenów",
-      "Określa prędkość generowania odpowiedzi",
-      "Ustawia rozmiar pamięci RAM dla modelu"
-    ],
-    correct: 1,
-    explain: "max_new_tokens ogranicza liczbę tokenów, które model może wygenerować w jednej odpowiedzi."
-  },
-  {
-    q: "Dlaczego w formacie wiadomości używamy klucza <code>\"role\"</code> (np. <code>\"user\"</code>, <code>\"assistant\"</code>)?",
-    options: [
-      "Bo Python wymaga słowników z kluczem role",
-      "Bo model został wytrenowany na rozmowach i musi wiedzieć, kto mówi",
-      "Bo bez tego tokenizer nie może zamienić tekstu na tokeny",
-      "Bo to zabezpieczenie przed wpisaniem pustego tekstu"
-    ],
-    correct: 1,
-    explain: "Model rozróżnia role rozmówców. Dzięki temu wie, że ma odpowiadać jako asystent, a nie kontynuować tekst użytkownika."
-  },
-  {
-    q: "Po co wycinamy <code>output[0][input_ids.shape[1]:]</code> zamiast dekodować cały output?",
-    options: [
-      "Żeby odpowiedź była krótsza i szybsza",
-      "Bo cały output zawiera i pytanie, i odpowiedź - chcemy tylko odpowiedź",
-      "Bo dekodowanie całego outputu powoduje błąd",
-      "Żeby usunąć znaki specjalne z odpowiedzi"
-    ],
-    correct: 1,
-    explain: "Output modelu zawiera tokeny pytania i odpowiedzi razem. Wycinamy pytanie, żeby chatbot go nie powtarzał."
-  },
-  {
-    q: "Jak chatbot \"pamięta\" wcześniejsze wiadomości w trybie multi-turn?",
-    options: [
-      "Model zapisuje rozmowę w swoich parametrach",
-      "Przechowujemy historię w liście i za każdym razem wysyłamy ją całą do modelu",
-      "Tokenizer automatycznie zapamiętuje ostatnie 10 wiadomości",
-      "System operacyjny buforuje poprzednie odpowiedzi"
-    ],
-    correct: 1,
-    explain: "Lista messages rośnie z każdą wiadomością. Przy każdym pytaniu model dostaje pełną historię rozmowy."
-  },
-  {
-    q: "Co zwraca <code>psutil.Process().memory_info().rss</code>?",
-    options: [
-      "Liczbę tokenów przetworzonych przez model",
-      "Prędkość procesora w GHz",
-      "Ilość pamięci RAM zajmowanej przez bieżący proces w bajtach",
-      "Całkowitą ilość wolnej pamięci RAM w systemie"
-    ],
-    correct: 2,
-    explain: "rss (Resident Set Size) to ilość pamięci RAM w bajtach, którą aktualnie zajmuje nasz program."
-  },
-  {
-    q: "Co robi parametr <code>add_generation_prompt=True</code> w <code>apply_chat_template</code>?",
-    options: [
-      "Dodaje na końcu znacznik mówiący modelowi, że ma zacząć generować odpowiedź",
-      "Wyświetla użytkownikowi zachętę do wpisania pytania",
-      "Automatycznie generuje pierwsze pytanie konwersacji",
-      "Włącza tryb debugowania tokenizera"
-    ],
-    correct: 0,
-    explain: "Ten parametr dodaje specjalny token na końcu, który sygnalizuje modelowi, że teraz jego kolej na odpowiedź."
-  },
-  {
-    q: "Dlaczego nawet \"mały\" model SmolLM2-135M zajmuje setki megabajtów RAM?",
-    options: [
-      "Bo Python jest bardzo pamięciożernym językiem",
-      "Bo biblioteka transformers ładuje wiele niepotrzebnych plików",
-      "Bo model ma 135 milionów parametrów, a każdy zajmuje kilka bajtów",
-      "Bo system operacyjny rezerwuje pamięć na zapas"
-    ],
-    correct: 2,
-    explain: "135 milionów parametrów × kilka bajtów na parametr = setki MB. Duże modele mają setki miliardów parametrów."
-  }
-];
+// ─── Data: texts in 4 languages (answers are language independent) ───
+const CORRECT = [1, 1, 1, 1, 1, 1, 1, 2, 0, 2];
 
+const I18N = {
+  "pl": {
+    "ui": {
+      "title": "Quiz — Transformers: inteligentny chatbot",
+      "tag": "Lekcja 37 — Python",
+      "h1": "Transformers: <span>inteligentny chatbot<\/span>",
+      "sub": "10 pytań powtórkowych z lekcji",
+      "qOf": "Pytanie {n} z {total}",
+      "answeredOf": "Odpowiedziano {n} z {total}",
+      "qNum": "Pytanie {n} / {total}",
+      "r90": [
+        "Rewelacja!",
+        "Doskonale opanowałeś materiał z lekcji o transformers."
+      ],
+      "r70": [
+        "Dobra robota!",
+        "Większość zagadnień masz opanowanych. Warto powtórzyć kilka szczegółów."
+      ],
+      "r50": [
+        "Nieźle!",
+        "Podstawy są, ale warto wrócić do konspektu i powtórzyć materiał."
+      ],
+      "r0": [
+        "Czas na powtórkę!",
+        "Wróć do konspektu i przejdź materiał jeszcze raz - dasz radę!"
+      ],
+      "retry": "Spróbuj ponownie"
+    },
+    "questions": [
+      {
+        "q": "Co robi klasa <code>AutoTokenizer<\/code> z biblioteki transformers?",
+        "options": [
+          "Generuje odpowiedzi modelu na pytania użytkownika",
+          "Zamienia tekst na tokeny (liczby) zrozumiałe dla modelu",
+          "Trenuje model językowy na nowych danych",
+          "Mierzy zużycie pamięci RAM programu"
+        ],
+        "explain": "AutoTokenizer zamienia tekst na ciąg liczb (tokenów), które model potrafi przetworzyć."
+      },
+      {
+        "q": "Co oznacza skrót \"CausalLM\" w nazwie <code>AutoModelForCausalLM<\/code>?",
+        "options": [
+          "Model klasyfikujący tekst do kategorii",
+          "Model generujący tekst token po tokenie na podstawie poprzednich",
+          "Model tłumaczący tekst między językami",
+          "Model kompresujący dane tekstowe"
+        ],
+        "explain": "CausalLM to model generujący tekst sekwencyjnie - przewiduje kolejny token na podstawie wcześniejszych."
+      },
+      {
+        "q": "Dlaczego pierwsze uruchomienie programu z modelem trwa znacznie dłużej niż kolejne?",
+        "options": [
+          "Python musi się skompilować przy pierwszym uruchomieniu",
+          "Model jest pobierany z internetu i zapisywany lokalnie na dysku",
+          "Biblioteka transformers instaluje się automatycznie",
+          "System operacyjny blokuje nowe programy przy pierwszym uruchomieniu"
+        ],
+        "explain": "Przy pierwszym uruchomieniu pliki modelu są pobierane z Hugging Face. Kolejne uruchomienia ładują je z dysku."
+      },
+      {
+        "q": "Co robi parametr <code>max_new_tokens=200<\/code> w metodzie <code>model.generate<\/code>?",
+        "options": [
+          "Ustawia maksymalną liczbę słów w pytaniu użytkownika",
+          "Ogranicza długość odpowiedzi modelu do 200 tokenów",
+          "Określa prędkość generowania odpowiedzi",
+          "Ustawia rozmiar pamięci RAM dla modelu"
+        ],
+        "explain": "max_new_tokens ogranicza liczbę tokenów, które model może wygenerować w jednej odpowiedzi."
+      },
+      {
+        "q": "Dlaczego w formacie wiadomości używamy klucza <code>\"role\"<\/code> (np. <code>\"user\"<\/code>, <code>\"assistant\"<\/code>)?",
+        "options": [
+          "Bo Python wymaga słowników z kluczem role",
+          "Bo model został wytrenowany na rozmowach i musi wiedzieć, kto mówi",
+          "Bo bez tego tokenizer nie może zamienić tekstu na tokeny",
+          "Bo to zabezpieczenie przed wpisaniem pustego tekstu"
+        ],
+        "explain": "Model rozróżnia role rozmówców. Dzięki temu wie, że ma odpowiadać jako asystent, a nie kontynuować tekst użytkownika."
+      },
+      {
+        "q": "Po co wycinamy <code>output[0][input_ids.shape[1]:]<\/code> zamiast dekodować cały output?",
+        "options": [
+          "Żeby odpowiedź była krótsza i szybsza",
+          "Bo cały output zawiera i pytanie, i odpowiedź - chcemy tylko odpowiedź",
+          "Bo dekodowanie całego outputu powoduje błąd",
+          "Żeby usunąć znaki specjalne z odpowiedzi"
+        ],
+        "explain": "Output modelu zawiera tokeny pytania i odpowiedzi razem. Wycinamy pytanie, żeby chatbot go nie powtarzał."
+      },
+      {
+        "q": "Jak chatbot \"pamięta\" wcześniejsze wiadomości w trybie multi-turn?",
+        "options": [
+          "Model zapisuje rozmowę w swoich parametrach",
+          "Przechowujemy historię w liście i za każdym razem wysyłamy ją całą do modelu",
+          "Tokenizer automatycznie zapamiętuje ostatnie 10 wiadomości",
+          "System operacyjny buforuje poprzednie odpowiedzi"
+        ],
+        "explain": "Lista messages rośnie z każdą wiadomością. Przy każdym pytaniu model dostaje pełną historię rozmowy."
+      },
+      {
+        "q": "Co zwraca <code>psutil.Process().memory_info().rss<\/code>?",
+        "options": [
+          "Liczbę tokenów przetworzonych przez model",
+          "Prędkość procesora w GHz",
+          "Ilość pamięci RAM zajmowanej przez bieżący proces w bajtach",
+          "Całkowitą ilość wolnej pamięci RAM w systemie"
+        ],
+        "explain": "rss (Resident Set Size) to ilość pamięci RAM w bajtach, którą aktualnie zajmuje nasz program."
+      },
+      {
+        "q": "Co robi parametr <code>add_generation_prompt=True<\/code> w <code>apply_chat_template<\/code>?",
+        "options": [
+          "Dodaje na końcu znacznik mówiący modelowi, że ma zacząć generować odpowiedź",
+          "Wyświetla użytkownikowi zachętę do wpisania pytania",
+          "Automatycznie generuje pierwsze pytanie konwersacji",
+          "Włącza tryb debugowania tokenizera"
+        ],
+        "explain": "Ten parametr dodaje specjalny token na końcu, który sygnalizuje modelowi, że teraz jego kolej na odpowiedź."
+      },
+      {
+        "q": "Dlaczego nawet \"mały\" model SmolLM2-135M zajmuje setki megabajtów RAM?",
+        "options": [
+          "Bo Python jest bardzo pamięciożernym językiem",
+          "Bo biblioteka transformers ładuje wiele niepotrzebnych plików",
+          "Bo model ma 135 milionów parametrów, a każdy zajmuje kilka bajtów",
+          "Bo system operacyjny rezerwuje pamięć na zapas"
+        ],
+        "explain": "135 milionów parametrów × kilka bajtów na parametr = setki MB. Duże modele mają setki miliardów parametrów."
+      }
+    ]
+  },
+  "en": {
+    "ui": {
+      "title": "Quiz — Transformers: an intelligent chatbot",
+      "tag": "Lesson 37 — Python",
+      "h1": "Transformers: <span>an intelligent chatbot<\/span>",
+      "sub": "10 review questions from the lesson",
+      "qOf": "Question {n} of {total}",
+      "answeredOf": "Answered {n} of {total}",
+      "qNum": "Question {n} / {total}",
+      "r90": [
+        "Outstanding!",
+        "You have mastered the material from the lesson on transformers perfectly."
+      ],
+      "r70": [
+        "Great job!",
+        "You have most of the topics under control. It is worth reviewing a few details."
+      ],
+      "r50": [
+        "Not bad!",
+        "You know the basics, but it is worth going back to the lesson notes and reviewing the material."
+      ],
+      "r0": [
+        "Time for a review!",
+        "Go back to the lesson notes and go through the material once more - you can do it!"
+      ],
+      "retry": "Try again"
+    },
+    "questions": [
+      {
+        "q": "What does the <code>AutoTokenizer<\/code> class from the transformers library do?",
+        "options": [
+          "Generates the model's answers to the user's questions",
+          "Converts text into tokens (numbers) that the model understands",
+          "Trains a language model on new data",
+          "Measures the program's RAM usage"
+        ],
+        "explain": "AutoTokenizer converts text into a sequence of numbers (tokens) that the model can process."
+      },
+      {
+        "q": "What does the abbreviation \"CausalLM\" in the name <code>AutoModelForCausalLM<\/code> stand for?",
+        "options": [
+          "A model that classifies text into categories",
+          "A model that generates text token by token based on the previous ones",
+          "A model that translates text between languages",
+          "A model that compresses text data"
+        ],
+        "explain": "CausalLM is a model that generates text sequentially - it predicts the next token based on the earlier ones."
+      },
+      {
+        "q": "Why does the first run of a program with a model take much longer than the following ones?",
+        "options": [
+          "Python has to compile on the first run",
+          "The model is downloaded from the internet and saved locally on the disk",
+          "The transformers library installs itself automatically",
+          "The operating system blocks new programs on the first run"
+        ],
+        "explain": "On the first run, the model files are downloaded from Hugging Face. Subsequent runs load them from the disk."
+      },
+      {
+        "q": "What does the <code>max_new_tokens=200<\/code> parameter do in the <code>model.generate<\/code> method?",
+        "options": [
+          "Sets the maximum number of words in the user's question",
+          "Limits the length of the model's answer to 200 tokens",
+          "Determines the speed of generating the answer",
+          "Sets the amount of RAM for the model"
+        ],
+        "explain": "max_new_tokens limits the number of tokens the model can generate in a single answer."
+      },
+      {
+        "q": "Why do we use the <code>\"role\"<\/code> key (e.g. <code>\"user\"<\/code>, <code>\"assistant\"<\/code>) in the message format?",
+        "options": [
+          "Because Python requires dictionaries with a role key",
+          "Because the model was trained on conversations and has to know who is speaking",
+          "Because without it the tokenizer cannot convert text into tokens",
+          "Because it is a safeguard against entering empty text"
+        ],
+        "explain": "The model distinguishes the roles of the speakers. Thanks to this, it knows it should answer as an assistant rather than continue the user's text."
+      },
+      {
+        "q": "Why do we cut out <code>output[0][input_ids.shape[1]:]<\/code> instead of decoding the whole output?",
+        "options": [
+          "To make the answer shorter and faster",
+          "Because the whole output contains both the question and the answer - we only want the answer",
+          "Because decoding the whole output causes an error",
+          "To remove special characters from the answer"
+        ],
+        "explain": "The model's output contains the tokens of the question and the answer together. We cut out the question so that the chatbot does not repeat it."
+      },
+      {
+        "q": "How does the chatbot \"remember\" earlier messages in multi-turn mode?",
+        "options": [
+          "The model saves the conversation in its parameters",
+          "We store the history in a list and send all of it to the model every time",
+          "The tokenizer automatically remembers the last 10 messages",
+          "The operating system caches previous answers"
+        ],
+        "explain": "The messages list grows with every message. With every question, the model receives the full conversation history."
+      },
+      {
+        "q": "What does <code>psutil.Process().memory_info().rss<\/code> return?",
+        "options": [
+          "The number of tokens processed by the model",
+          "The processor speed in GHz",
+          "The amount of RAM used by the current process, in bytes",
+          "The total amount of free RAM in the system"
+        ],
+        "explain": "rss (Resident Set Size) is the amount of RAM, in bytes, that our program currently occupies."
+      },
+      {
+        "q": "What does the <code>add_generation_prompt=True<\/code> parameter do in <code>apply_chat_template<\/code>?",
+        "options": [
+          "Adds a marker at the end telling the model that it should start generating an answer",
+          "Shows the user a prompt to type in a question",
+          "Automatically generates the first question of the conversation",
+          "Turns on the tokenizer's debug mode"
+        ],
+        "explain": "This parameter adds a special token at the end that signals to the model that it is now its turn to answer."
+      },
+      {
+        "q": "Why does even the \"small\" SmolLM2-135M model take up hundreds of megabytes of RAM?",
+        "options": [
+          "Because Python is a very memory-hungry language",
+          "Because the transformers library loads many unnecessary files",
+          "Because the model has 135 million parameters, and each one takes up a few bytes",
+          "Because the operating system reserves memory in advance"
+        ],
+        "explain": "135 million parameters × a few bytes per parameter = hundreds of MB. Large models have hundreds of billions of parameters."
+      }
+    ]
+  },
+  "es": {
+    "ui": {
+      "title": "Quiz — Transformers: un chatbot inteligente",
+      "tag": "Lección 37 — Python",
+      "h1": "Transformers: <span>un chatbot inteligente<\/span>",
+      "sub": "10 preguntas de repaso de la lección",
+      "qOf": "Pregunta {n} de {total}",
+      "answeredOf": "Respondidas {n} de {total}",
+      "qNum": "Pregunta {n} / {total}",
+      "r90": [
+        "¡Espectacular!",
+        "Has dominado a la perfección el material de la lección sobre transformers."
+      ],
+      "r70": [
+        "¡Buen trabajo!",
+        "Dominas la mayoría de los temas. Conviene repasar algunos detalles."
+      ],
+      "r50": [
+        "¡No está mal!",
+        "Tienes las bases, pero conviene volver a los apuntes de la lección y repasar el material."
+      ],
+      "r0": [
+        "¡Hora de repasar!",
+        "Vuelve a los apuntes de la lección y repasa el material una vez más - ¡puedes hacerlo!"
+      ],
+      "retry": "Intentar de nuevo"
+    },
+    "questions": [
+      {
+        "q": "¿Qué hace la clase <code>AutoTokenizer<\/code> de la biblioteca transformers?",
+        "options": [
+          "Genera las respuestas del modelo a las preguntas del usuario",
+          "Convierte el texto en tokens (números) que el modelo entiende",
+          "Entrena un modelo de lenguaje con datos nuevos",
+          "Mide el consumo de memoria RAM del programa"
+        ],
+        "explain": "AutoTokenizer convierte el texto en una secuencia de números (tokens) que el modelo puede procesar."
+      },
+      {
+        "q": "¿Qué significa la abreviatura \"CausalLM\" en el nombre <code>AutoModelForCausalLM<\/code>?",
+        "options": [
+          "Un modelo que clasifica texto en categorías",
+          "Un modelo que genera texto token a token a partir de los anteriores",
+          "Un modelo que traduce texto entre idiomas",
+          "Un modelo que comprime datos de texto"
+        ],
+        "explain": "CausalLM es un modelo que genera texto de forma secuencial - predice el siguiente token a partir de los anteriores."
+      },
+      {
+        "q": "¿Por qué la primera ejecución de un programa con un modelo tarda mucho más que las siguientes?",
+        "options": [
+          "Python tiene que compilarse en la primera ejecución",
+          "El modelo se descarga de internet y se guarda localmente en el disco",
+          "La biblioteca transformers se instala automáticamente",
+          "El sistema operativo bloquea los programas nuevos en la primera ejecución"
+        ],
+        "explain": "En la primera ejecución, los archivos del modelo se descargan de Hugging Face. Las ejecuciones siguientes los cargan desde el disco."
+      },
+      {
+        "q": "¿Qué hace el parámetro <code>max_new_tokens=200<\/code> en el método <code>model.generate<\/code>?",
+        "options": [
+          "Establece el número máximo de palabras en la pregunta del usuario",
+          "Limita la longitud de la respuesta del modelo a 200 tokens",
+          "Determina la velocidad de generación de la respuesta",
+          "Establece el tamaño de la memoria RAM para el modelo"
+        ],
+        "explain": "max_new_tokens limita el número de tokens que el modelo puede generar en una sola respuesta."
+      },
+      {
+        "q": "¿Por qué usamos la clave <code>\"role\"<\/code> (p. ej. <code>\"user\"<\/code>, <code>\"assistant\"<\/code>) en el formato de los mensajes?",
+        "options": [
+          "Porque Python exige diccionarios con la clave role",
+          "Porque el modelo fue entrenado con conversaciones y tiene que saber quién habla",
+          "Porque sin ella el tokenizer no puede convertir el texto en tokens",
+          "Porque es una protección contra la introducción de texto vacío"
+        ],
+        "explain": "El modelo distingue los roles de los interlocutores. Gracias a ello sabe que debe responder como asistente y no continuar el texto del usuario."
+      },
+      {
+        "q": "¿Para qué recortamos <code>output[0][input_ids.shape[1]:]<\/code> en lugar de decodificar todo el output?",
+        "options": [
+          "Para que la respuesta sea más corta y rápida",
+          "Porque todo el output contiene tanto la pregunta como la respuesta - solo queremos la respuesta",
+          "Porque decodificar todo el output provoca un error",
+          "Para eliminar caracteres especiales de la respuesta"
+        ],
+        "explain": "El output del modelo contiene juntos los tokens de la pregunta y de la respuesta. Recortamos la pregunta para que el chatbot no la repita."
+      },
+      {
+        "q": "¿Cómo \"recuerda\" el chatbot los mensajes anteriores en el modo multi-turn?",
+        "options": [
+          "El modelo guarda la conversación en sus parámetros",
+          "Guardamos el historial en una lista y lo enviamos completo al modelo cada vez",
+          "El tokenizer recuerda automáticamente los últimos 10 mensajes",
+          "El sistema operativo almacena en caché las respuestas anteriores"
+        ],
+        "explain": "La lista messages crece con cada mensaje. En cada pregunta, el modelo recibe el historial completo de la conversación."
+      },
+      {
+        "q": "¿Qué devuelve <code>psutil.Process().memory_info().rss<\/code>?",
+        "options": [
+          "El número de tokens procesados por el modelo",
+          "La velocidad del procesador en GHz",
+          "La cantidad de memoria RAM ocupada por el proceso actual, en bytes",
+          "La cantidad total de memoria RAM libre en el sistema"
+        ],
+        "explain": "rss (Resident Set Size) es la cantidad de memoria RAM, en bytes, que ocupa actualmente nuestro programa."
+      },
+      {
+        "q": "¿Qué hace el parámetro <code>add_generation_prompt=True<\/code> en <code>apply_chat_template<\/code>?",
+        "options": [
+          "Añade al final una marca que le indica al modelo que debe empezar a generar la respuesta",
+          "Muestra al usuario una invitación a escribir una pregunta",
+          "Genera automáticamente la primera pregunta de la conversación",
+          "Activa el modo de depuración del tokenizer"
+        ],
+        "explain": "Este parámetro añade al final un token especial que indica al modelo que ahora le toca a él responder."
+      },
+      {
+        "q": "¿Por qué incluso el modelo \"pequeño\" SmolLM2-135M ocupa cientos de megabytes de RAM?",
+        "options": [
+          "Porque Python es un lenguaje que consume mucha memoria",
+          "Porque la biblioteca transformers carga muchos archivos innecesarios",
+          "Porque el modelo tiene 135 millones de parámetros y cada uno ocupa varios bytes",
+          "Porque el sistema operativo reserva memoria de sobra"
+        ],
+        "explain": "135 millones de parámetros × varios bytes por parámetro = cientos de MB. Los modelos grandes tienen cientos de miles de millones de parámetros."
+      }
+    ]
+  },
+  "de": {
+    "ui": {
+      "title": "Quiz — Transformers: ein intelligenter Chatbot",
+      "tag": "Lektion 37 — Python",
+      "h1": "Transformers: <span>ein intelligenter Chatbot<\/span>",
+      "sub": "10 Wiederholungsfragen zur Lektion",
+      "qOf": "Frage {n} von {total}",
+      "answeredOf": "{n} von {total} beantwortet",
+      "qNum": "Frage {n} / {total}",
+      "r90": [
+        "Hervorragend!",
+        "Du hast den Stoff der Lektion über Transformers ausgezeichnet gemeistert."
+      ],
+      "r70": [
+        "Gut gemacht!",
+        "Die meisten Themen beherrschst du. Es lohnt sich, ein paar Details zu wiederholen."
+      ],
+      "r50": [
+        "Nicht schlecht!",
+        "Die Grundlagen sitzen, aber es lohnt sich, zu den Lektionsunterlagen zurückzukehren und den Stoff zu wiederholen."
+      ],
+      "r0": [
+        "Zeit zum Wiederholen!",
+        "Gehe zurück zu den Lektionsunterlagen und arbeite den Stoff noch einmal durch - du schaffst das!"
+      ],
+      "retry": "Erneut versuchen"
+    },
+    "questions": [
+      {
+        "q": "Was macht die Klasse <code>AutoTokenizer<\/code> aus der Bibliothek transformers?",
+        "options": [
+          "Erzeugt die Antworten des Modells auf die Fragen des Benutzers",
+          "Wandelt Text in Tokens (Zahlen) um, die das Modell versteht",
+          "Trainiert ein Sprachmodell mit neuen Daten",
+          "Misst den RAM-Verbrauch des Programms"
+        ],
+        "explain": "AutoTokenizer wandelt Text in eine Folge von Zahlen (Tokens) um, die das Modell verarbeiten kann."
+      },
+      {
+        "q": "Was bedeutet die Abkürzung \"CausalLM\" im Namen <code>AutoModelForCausalLM<\/code>?",
+        "options": [
+          "Ein Modell, das Text in Kategorien einordnet",
+          "Ein Modell, das Text Token für Token auf Grundlage der vorherigen erzeugt",
+          "Ein Modell, das Text zwischen Sprachen übersetzt",
+          "Ein Modell, das Textdaten komprimiert"
+        ],
+        "explain": "CausalLM ist ein Modell, das Text sequenziell erzeugt - es sagt das nächste Token anhand der früheren voraus."
+      },
+      {
+        "q": "Warum dauert der erste Start eines Programms mit einem Modell deutlich länger als die folgenden?",
+        "options": [
+          "Python muss beim ersten Start kompiliert werden",
+          "Das Modell wird aus dem Internet heruntergeladen und lokal auf der Festplatte gespeichert",
+          "Die Bibliothek transformers installiert sich automatisch",
+          "Das Betriebssystem blockiert neue Programme beim ersten Start"
+        ],
+        "explain": "Beim ersten Start werden die Modelldateien von Hugging Face heruntergeladen. Bei den folgenden Starts werden sie von der Festplatte geladen."
+      },
+      {
+        "q": "Was bewirkt der Parameter <code>max_new_tokens=200<\/code> in der Methode <code>model.generate<\/code>?",
+        "options": [
+          "Legt die maximale Anzahl von Wörtern in der Frage des Benutzers fest",
+          "Begrenzt die Länge der Antwort des Modells auf 200 Tokens",
+          "Bestimmt die Geschwindigkeit der Antworterzeugung",
+          "Legt die RAM-Größe für das Modell fest"
+        ],
+        "explain": "max_new_tokens begrenzt die Anzahl der Tokens, die das Modell in einer einzigen Antwort erzeugen darf."
+      },
+      {
+        "q": "Warum verwenden wir im Nachrichtenformat den Schlüssel <code>\"role\"<\/code> (z. B. <code>\"user\"<\/code>, <code>\"assistant\"<\/code>)?",
+        "options": [
+          "Weil Python Dictionaries mit dem Schlüssel role verlangt",
+          "Weil das Modell mit Gesprächen trainiert wurde und wissen muss, wer spricht",
+          "Weil der Tokenizer ohne ihn den Text nicht in Tokens umwandeln kann",
+          "Weil es ein Schutz vor der Eingabe von leerem Text ist"
+        ],
+        "explain": "Das Modell unterscheidet die Rollen der Gesprächspartner. Dadurch weiß es, dass es als Assistent antworten und nicht den Text des Benutzers fortsetzen soll."
+      },
+      {
+        "q": "Wozu schneiden wir <code>output[0][input_ids.shape[1]:]<\/code> heraus, anstatt den gesamten Output zu dekodieren?",
+        "options": [
+          "Damit die Antwort kürzer und schneller ist",
+          "Weil der gesamte Output sowohl die Frage als auch die Antwort enthält - wir wollen nur die Antwort",
+          "Weil das Dekodieren des gesamten Outputs einen Fehler verursacht",
+          "Um Sonderzeichen aus der Antwort zu entfernen"
+        ],
+        "explain": "Der Output des Modells enthält die Tokens der Frage und der Antwort zusammen. Wir schneiden die Frage heraus, damit der Chatbot sie nicht wiederholt."
+      },
+      {
+        "q": "Wie \"erinnert\" sich der Chatbot im Multi-Turn-Modus an frühere Nachrichten?",
+        "options": [
+          "Das Modell speichert das Gespräch in seinen Parametern",
+          "Wir speichern den Verlauf in einer Liste und senden ihn jedes Mal vollständig an das Modell",
+          "Der Tokenizer merkt sich automatisch die letzten 10 Nachrichten",
+          "Das Betriebssystem puffert frühere Antworten"
+        ],
+        "explain": "Die Liste messages wächst mit jeder Nachricht. Bei jeder Frage erhält das Modell den vollständigen Gesprächsverlauf."
+      },
+      {
+        "q": "Was gibt <code>psutil.Process().memory_info().rss<\/code> zurück?",
+        "options": [
+          "Die Anzahl der vom Modell verarbeiteten Tokens",
+          "Die Prozessorgeschwindigkeit in GHz",
+          "Die Menge an RAM, die vom aktuellen Prozess belegt wird, in Bytes",
+          "Die gesamte Menge an freiem RAM im System"
+        ],
+        "explain": "rss (Resident Set Size) ist die Menge an RAM in Bytes, die unser Programm aktuell belegt."
+      },
+      {
+        "q": "Was bewirkt der Parameter <code>add_generation_prompt=True<\/code> in <code>apply_chat_template<\/code>?",
+        "options": [
+          "Fügt am Ende eine Markierung hinzu, die dem Modell sagt, dass es mit der Antwort beginnen soll",
+          "Zeigt dem Benutzer eine Aufforderung zur Eingabe einer Frage an",
+          "Erzeugt automatisch die erste Frage des Gesprächs",
+          "Aktiviert den Debug-Modus des Tokenizers"
+        ],
+        "explain": "Dieser Parameter fügt am Ende ein spezielles Token hinzu, das dem Modell signalisiert, dass es jetzt an der Reihe ist zu antworten."
+      },
+      {
+        "q": "Warum belegt selbst das \"kleine\" Modell SmolLM2-135M Hunderte von Megabyte RAM?",
+        "options": [
+          "Weil Python eine sehr speicherhungrige Sprache ist",
+          "Weil die Bibliothek transformers viele unnötige Dateien lädt",
+          "Weil das Modell 135 Millionen Parameter hat und jeder mehrere Bytes belegt",
+          "Weil das Betriebssystem vorsorglich Speicher reserviert"
+        ],
+        "explain": "135 Millionen Parameter × mehrere Bytes pro Parameter = Hunderte MB. Große Modelle haben Hunderte von Milliarden Parameter."
+      }
+    ]
+  }
+};
+
+const LANGS = ['pl', 'en', 'es', 'de'];
+const TOTAL = CORRECT.length;
+let lang = 'pl';
+const T  = () => I18N[lang].ui;
+const QS = () => I18N[lang].questions;
+const fmt = (s, vars) => s.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+
+// ─── Quiz state ───
 let currentQ = 0;
 let score = 0;
-let answered = new Array(QUESTIONS.length).fill(false);
+let answered = new Array(TOTAL).fill(false);
+let chosen = new Array(TOTAL).fill(null);   // index of the option picked for each question
+let finished = false;
 
-function renderQuestion() {
+function renderQuestion(animate = true) {
   const area = document.getElementById('quizArea');
-  const q = QUESTIONS[currentQ];
+  const q = QS()[currentQ];
   const letters = ['A', 'B', 'C', 'D'];
 
-  let html = `<div class="question-card" id="qCard">
-    <div class="q-number">Pytanie ${currentQ + 1} / ${QUESTIONS.length}</div>
+  let html = `<div class="question-card${animate ? '' : ' no-anim'}" id="qCard">
+    <div class="q-number">${fmt(T().qNum, { n: currentQ + 1, total: TOTAL })}</div>
     <div class="q-text">${q.q}</div>
     <div class="options">`;
 
@@ -498,39 +971,47 @@ function renderQuestion() {
   html += `</div><div id="feedback"></div></div>`;
   area.innerHTML = html;
 
+  // if this question was already answered (e.g. the language was changed), restore its state
+  if (answered[currentQ]) showAnswerState(false);
+
   updateProgress();
 }
 
-function selectOption(idx) {
-  if (answered[currentQ]) return;
-  answered[currentQ] = true;
-
-  const q = QUESTIONS[currentQ];
-  const isCorrect = idx === q.correct;
+function showAnswerState(pop) {
+  const q = QS()[currentQ];
+  const idx = chosen[currentQ];
+  const isCorrect = idx === CORRECT[currentQ];
   const card = document.getElementById('qCard');
   const options = document.querySelectorAll('.option');
   const feedback = document.getElementById('feedback');
 
-  if (isCorrect) score++;
-
   options.forEach((opt, i) => {
     opt.classList.add('disabled');
-    if (i === q.correct) opt.classList.add('is-correct');
+    if (i === CORRECT[currentQ]) opt.classList.add('is-correct');
     if (i === idx && !isCorrect) opt.classList.add('is-wrong');
     if (i === idx) opt.classList.add('selected');
   });
 
   card.classList.add(isCorrect ? 'correct' : 'wrong');
-  card.classList.add('pop');
+  if (pop) card.classList.add('pop');
 
-  feedback.innerHTML = `<div class="feedback ${isCorrect ? 'correct-fb' : 'wrong-fb'}">
+  feedback.innerHTML = `<div class="feedback ${isCorrect ? 'correct-fb' : 'wrong-fb'}${pop ? '' : ' no-anim'}">
     ${isCorrect ? '✓' : '✗'} ${q.explain}
   </div>`;
+}
 
+function selectOption(idx) {
+  if (answered[currentQ]) return;
+  answered[currentQ] = true;
+  chosen[currentQ] = idx;
+
+  if (idx === CORRECT[currentQ]) score++;
+
+  showAnswerState(true);
   updateProgress();
 
   setTimeout(() => {
-    if (currentQ < QUESTIONS.length - 1) {
+    if (currentQ < TOTAL - 1) {
       currentQ++;
       renderQuestion();
       window.scrollTo({ top: document.getElementById('qCard').offsetTop - 120, behavior: 'smooth' });
@@ -543,47 +1024,87 @@ function selectOption(idx) {
 function updateProgress() {
   const answeredCount = answered.filter(Boolean).length;
   document.getElementById('progressLabel').textContent = answered[currentQ]
-    ? `Odpowiedziano ${answeredCount} z ${QUESTIONS.length}`
-    : `Pytanie ${currentQ + 1} z ${QUESTIONS.length}`;
-  document.getElementById('progressScore').textContent = `${score} / ${QUESTIONS.length}`;
-  document.getElementById('progressFill').style.width = `${(answeredCount / QUESTIONS.length) * 100}%`;
+    ? fmt(T().answeredOf, { n: answeredCount, total: TOTAL })
+    : fmt(T().qOf, { n: currentQ + 1, total: TOTAL });
+  document.getElementById('progressScore').textContent = `${score} / ${TOTAL}`;
+  document.getElementById('progressFill').style.width = `${(answeredCount / TOTAL) * 100}%`;
+}
+
+function renderResults() {
+  const pct = Math.round((score / TOTAL) * 100);
+  const ui = T();
+  let icon, tier;
+
+  if (pct >= 90)      { icon = '🏆'; tier = ui.r90; }
+  else if (pct >= 70) { icon = '🎯'; tier = ui.r70; }
+  else if (pct >= 50) { icon = '💪'; tier = ui.r50; }
+  else                { icon = '📖'; tier = ui.r0; }
+
+  document.getElementById('resultsIcon').textContent = icon;
+  document.getElementById('resultsTitle').textContent = tier[0];
+  document.getElementById('resultsScore').textContent = `${score} / ${TOTAL}`;
+  document.getElementById('resultsText').textContent = tier[1];
 }
 
 function showResults() {
+  finished = true;
   document.getElementById('quizArea').style.display = 'none';
-  const res = document.getElementById('results');
-  res.style.display = 'block';
-
-  const pct = Math.round((score / QUESTIONS.length) * 100);
-  let icon, title, text;
-
-  if (pct >= 90) {
-    icon = '🏆'; title = 'Rewelacja!'; text = 'Doskonale opanowałeś materiał z lekcji o transformers.';
-  } else if (pct >= 70) {
-    icon = '🎯'; title = 'Dobra robota!'; text = 'Większość zagadnień masz opanowanych. Warto powtórzyć kilka szczegółów.';
-  } else if (pct >= 50) {
-    icon = '💪'; title = 'Nieźle!'; text = 'Podstawy są, ale warto wrócić do konspektu i powtórzyć materiał.';
-  } else {
-    icon = '📖'; title = 'Czas na powtórkę!'; text = 'Wróć do konspektu i przejdź materiał jeszcze raz - dasz radę!';
-  }
-
-  document.getElementById('resultsIcon').textContent = icon;
-  document.getElementById('resultsTitle').textContent = title;
-  document.getElementById('resultsScore').textContent = `${score} / ${QUESTIONS.length}`;
-  document.getElementById('resultsText').textContent = text;
+  document.getElementById('results').style.display = 'block';
+  renderResults();
 }
 
 function restartQuiz() {
   currentQ = 0;
   score = 0;
-  answered = new Array(QUESTIONS.length).fill(false);
+  answered = new Array(TOTAL).fill(false);
+  chosen = new Array(TOTAL).fill(null);
+  finished = false;
   document.getElementById('quizArea').style.display = 'block';
   document.getElementById('results').style.display = 'none';
   renderQuestion();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-renderQuestion();
+// ─── Language switching ───
+function applyLanguage(l, persist = true) {
+  if (!LANGS.includes(l)) l = 'pl';
+  lang = l;
+  const ui = T();
+
+  document.documentElement.lang = l;
+  document.title = ui.title;
+  document.getElementById('headerTag').textContent = ui.tag;
+  document.getElementById('headerTitle').innerHTML = ui.h1;
+  document.getElementById('headerSub').textContent = ui.sub;
+  document.getElementById('btnRestart').textContent = ui.retry;
+
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    const active = btn.dataset.lang === l;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+
+  if (persist) {
+    try { localStorage.setItem('quizLang', l); } catch (e) { /* storage unavailable */ }
+  }
+
+  // re-render what is on screen, keeping score / current question / given answers
+  if (!finished) renderQuestion(false);
+  else renderResults();
+  updateProgress();
+}
+
+document.querySelectorAll('.lang-btn').forEach(btn => {
+  btn.addEventListener('click', () => applyLanguage(btn.dataset.lang));
+});
+
+let startLang = 'pl';
+try {
+  const saved = localStorage.getItem('quizLang');
+  if (LANGS.includes(saved)) startLang = saved;
+} catch (e) { /* storage unavailable */ }
+
+applyLanguage(startLang, false);
 </script>
 </body>
 </html>
