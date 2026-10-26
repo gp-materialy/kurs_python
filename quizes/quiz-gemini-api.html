@@ -118,6 +118,24 @@ body{
 .result-msg{font-size:1rem;color:var(--muted);text-align:center;line-height:1.5;max-width:340px}
 .result .btn{margin-top:12px}
 
+
+/* ---- language switcher ---- */
+.shell{width:100%;max-width:660px;display:flex;flex-direction:column;gap:20px}
+.lang-switch{
+  display:flex;justify-content:center;gap:4px;align-self:center;
+  padding:5px;background:var(--card);border:1px solid var(--border);border-radius:20px;
+  box-shadow:0 1px 3px rgba(0,0,0,.04);
+}
+.lang-btn{
+  font-family:var(--font);font-size:.8rem;font-weight:700;letter-spacing:.06em;
+  min-width:46px;padding:7px 14px;border:none;border-radius:16px;
+  background:transparent;color:var(--muted);cursor:pointer;
+  transition:background .15s ease,color .15s ease,box-shadow .15s ease;
+}
+.lang-btn:hover:not(.active){background:var(--purple-light);color:var(--purple)}
+.lang-btn.active{background:var(--purple);color:#fff;cursor:default;box-shadow:0 3px 10px var(--purple-glow)}
+.lang-btn:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+
 /* ---- responsive ---- */
 @media(max-width:480px){
   .card{padding:24px 18px}
@@ -129,52 +147,493 @@ body{
 </head>
 <body>
 
-<div class="quiz" id="app"></div>
+<div class="shell">
+  <div class="lang-switch" role="group" aria-label="Język / Language / Idioma / Sprache">
+    <button type="button" class="lang-btn" data-lang="pl" lang="pl" title="Polski" aria-label="Polski">PL</button>
+    <button type="button" class="lang-btn" data-lang="en" lang="en" title="English" aria-label="English">EN</button>
+    <button type="button" class="lang-btn" data-lang="es" lang="es" title="Español" aria-label="Español">ES</button>
+    <button type="button" class="lang-btn" data-lang="de" lang="de" title="Deutsch" aria-label="Deutsch">DE</button>
+  </div>
+  <div class="quiz" id="app"></div>
+</div>
 
 <script>
-const Q=[
-{q:"Jaką komendę wpisujemy w terminalu, żeby zainstalować bibliotekę do komunikacji z Gemini?",o:["<code>pip install gemini</code>","<code>pip install google-genai</code>","<code>npm install google-genai</code>","<code>pip install openai</code>"],c:1},
-{q:"Co to jest klucz API?",o:["Hasło do konta Google","Specjalny kod, który identyfikuje nas i daje pozwolenie na korzystanie z serwisu","Numer seryjny komputera","Nazwa modelu AI"],c:1},
-{q:"Gdzie zdobywamy klucz API do Gemini?",o:["W ustawieniach Pythona","Na stronie github.com","Na stronie aistudio.google.com","W terminalu komendą <code>genai --key</code>"],c:2},
-{q:"Jak tworzymy klienta API w bibliotece <code>google-genai</code>?",o:["<code>genai.configure(api_key=\"...\")</code>","<code>client = genai.Client(api_key=\"...\")</code>","<code>genai.connect(key=\"...\")</code>","<code>client = genai.login(\"...\")</code>"],c:1},
-{q:"Dlaczego chatbot z Gemini API odpowiada znacznie szybciej niż lokalny model z poprzedniej lekcji?",o:["Bo używa mniejszego modelu","Bo Python działa szybciej z biblioteką google-genai","Bo obliczenia wykonują potężne serwery Google, a nie nasz komputer","Bo klucz API przyspiesza działanie programu"],c:2},
-{q:"Co robi obiekt <code>chat</code> utworzony przez <code>client.chats.create()</code>?",o:["Wysyła jednorazowe pytanie bez pamięci","Tworzy nowy model AI na naszym komputerze","Przechowuje historię konwersacji i wysyła ją z każdym pytaniem","Szyfruje wiadomości przed wysłaniem"],c:2},
-{q:"Co się stanie, jeśli wyślemy pytanie z błędnym kluczem API i nie mamy <code>try/except</code>?",o:["Program pokaże pustą odpowiedź","Program wyświetli ostrzeżenie i będzie działał dalej","Program się zawiesi i przestanie działać (crash)","Gemini automatycznie naprawi klucz"],c:2},
-{q:"Co to jest system prompt?",o:["Pierwsze pytanie, które zadaje użytkownik","Instrukcja mówiąca modelowi, jak ma się zachowywać (ton, styl, osobowość)","Komenda instalująca bibliotekę","Wiadomość, którą model wysyła na start"],c:1},
-{q:"Dlaczego do przechowywania postaci użyliśmy słownika zamiast wielu instrukcji <code>if</code>?",o:["Bo słownik działa szybciej niż if","Bo if nie działa w Pythonie z tekstem","Bo słownik jest czytelniejszy i łatwiej go rozbudować o nowe postacie","Bo Gemini API wymaga słownika"],c:2},
-{q:"Jaką wadę ma korzystanie z modelu AI przez API w porównaniu z modelem lokalnym?",o:["API zawsze daje gorsze odpowiedzi","API wymaga internetu, klucza i zaufania do dostawcy","API jest zawsze wolniejsze","API nie obsługuje języka polskiego"],c:1}
-];
+const CORRECT=[1, 1, 2, 1, 2, 2, 2, 1, 2, 1];
+
+const I18N={
+  "pl": {
+    "ui": {
+      "title": "Quiz — Gemini API - zdalny LLM",
+      "header": "Gemini API — Quiz",
+      "retry": "Spróbuj ponownie",
+      "fbOk": "✅ Poprawna odpowiedź!",
+      "fbNo": "❌ Niestety, to nie ta odpowiedź.",
+      "seeResult": "Zobacz wynik",
+      "next": "Następne →",
+      "check": "Sprawdź",
+      "score": "Wynik: {s} / {n}",
+      "msgHigh": "Świetna robota!",
+      "msgMid": "Dobry wynik, ale jest jeszcze pole do poprawy.",
+      "msgLow": "Warto powtórzyć materiał i spróbować ponownie."
+    },
+    "questions": [
+      {
+        "q": "Jaką komendę wpisujemy w terminalu, żeby zainstalować bibliotekę do komunikacji z Gemini?",
+        "o": [
+          "<code>pip install gemini<\/code>",
+          "<code>pip install google-genai<\/code>",
+          "<code>npm install google-genai<\/code>",
+          "<code>pip install openai<\/code>"
+        ]
+      },
+      {
+        "q": "Co to jest klucz API?",
+        "o": [
+          "Hasło do konta Google",
+          "Specjalny kod, który identyfikuje nas i daje pozwolenie na korzystanie z serwisu",
+          "Numer seryjny komputera",
+          "Nazwa modelu AI"
+        ]
+      },
+      {
+        "q": "Gdzie zdobywamy klucz API do Gemini?",
+        "o": [
+          "W ustawieniach Pythona",
+          "Na stronie github.com",
+          "Na stronie aistudio.google.com",
+          "W terminalu komendą <code>genai --key<\/code>"
+        ]
+      },
+      {
+        "q": "Jak tworzymy klienta API w bibliotece <code>google-genai<\/code>?",
+        "o": [
+          "<code>genai.configure(api_key=\"...\")<\/code>",
+          "<code>client = genai.Client(api_key=\"...\")<\/code>",
+          "<code>genai.connect(key=\"...\")<\/code>",
+          "<code>client = genai.login(\"...\")<\/code>"
+        ]
+      },
+      {
+        "q": "Dlaczego chatbot z Gemini API odpowiada znacznie szybciej niż lokalny model z poprzedniej lekcji?",
+        "o": [
+          "Bo używa mniejszego modelu",
+          "Bo Python działa szybciej z biblioteką google-genai",
+          "Bo obliczenia wykonują potężne serwery Google, a nie nasz komputer",
+          "Bo klucz API przyspiesza działanie programu"
+        ]
+      },
+      {
+        "q": "Co robi obiekt <code>chat<\/code> utworzony przez <code>client.chats.create()<\/code>?",
+        "o": [
+          "Wysyła jednorazowe pytanie bez pamięci",
+          "Tworzy nowy model AI na naszym komputerze",
+          "Przechowuje historię konwersacji i wysyła ją z każdym pytaniem",
+          "Szyfruje wiadomości przed wysłaniem"
+        ]
+      },
+      {
+        "q": "Co się stanie, jeśli wyślemy pytanie z błędnym kluczem API i nie mamy <code>try/except<\/code>?",
+        "o": [
+          "Program pokaże pustą odpowiedź",
+          "Program wyświetli ostrzeżenie i będzie działał dalej",
+          "Program się zawiesi i przestanie działać (crash)",
+          "Gemini automatycznie naprawi klucz"
+        ]
+      },
+      {
+        "q": "Co to jest system prompt?",
+        "o": [
+          "Pierwsze pytanie, które zadaje użytkownik",
+          "Instrukcja mówiąca modelowi, jak ma się zachowywać (ton, styl, osobowość)",
+          "Komenda instalująca bibliotekę",
+          "Wiadomość, którą model wysyła na start"
+        ]
+      },
+      {
+        "q": "Dlaczego do przechowywania postaci użyliśmy słownika zamiast wielu instrukcji <code>if<\/code>?",
+        "o": [
+          "Bo słownik działa szybciej niż if",
+          "Bo if nie działa w Pythonie z tekstem",
+          "Bo słownik jest czytelniejszy i łatwiej go rozbudować o nowe postacie",
+          "Bo Gemini API wymaga słownika"
+        ]
+      },
+      {
+        "q": "Jaką wadę ma korzystanie z modelu AI przez API w porównaniu z modelem lokalnym?",
+        "o": [
+          "API zawsze daje gorsze odpowiedzi",
+          "API wymaga internetu, klucza i zaufania do dostawcy",
+          "API jest zawsze wolniejsze",
+          "API nie obsługuje języka polskiego"
+        ]
+      }
+    ]
+  },
+  "en": {
+    "ui": {
+      "title": "Quiz — Gemini API - remote LLM",
+      "header": "Gemini API — Quiz",
+      "retry": "Try again",
+      "fbOk": "✅ Correct answer!",
+      "fbNo": "❌ Unfortunately, that is not the right answer.",
+      "seeResult": "See the result",
+      "next": "Next →",
+      "check": "Check",
+      "score": "Score: {s} / {n}",
+      "msgHigh": "Great job!",
+      "msgMid": "A good result, but there is still room for improvement.",
+      "msgLow": "It is worth reviewing the material and trying again."
+    },
+    "questions": [
+      {
+        "q": "What command do we type in the terminal to install the library for communicating with Gemini?",
+        "o": [
+          "<code>pip install gemini<\/code>",
+          "<code>pip install google-genai<\/code>",
+          "<code>npm install google-genai<\/code>",
+          "<code>pip install openai<\/code>"
+        ]
+      },
+      {
+        "q": "What is an API key?",
+        "o": [
+          "A password to a Google account",
+          "A special code that identifies us and gives us permission to use the service",
+          "A computer's serial number",
+          "The name of an AI model"
+        ]
+      },
+      {
+        "q": "Where do we get an API key for Gemini?",
+        "o": [
+          "In the Python settings",
+          "On the github.com website",
+          "On the aistudio.google.com website",
+          "In the terminal with the <code>genai --key<\/code> command"
+        ]
+      },
+      {
+        "q": "How do we create an API client in the <code>google-genai<\/code> library?",
+        "o": [
+          "<code>genai.configure(api_key=\"...\")<\/code>",
+          "<code>client = genai.Client(api_key=\"...\")<\/code>",
+          "<code>genai.connect(key=\"...\")<\/code>",
+          "<code>client = genai.login(\"...\")<\/code>"
+        ]
+      },
+      {
+        "q": "Why does a chatbot using the Gemini API respond much faster than the local model from the previous lesson?",
+        "o": [
+          "Because it uses a smaller model",
+          "Because Python runs faster with the google-genai library",
+          "Because the calculations are performed by powerful Google servers, not our computer",
+          "Because the API key speeds up the program"
+        ]
+      },
+      {
+        "q": "What does the <code>chat<\/code> object created by <code>client.chats.create()<\/code> do?",
+        "o": [
+          "Sends a one-off question without memory",
+          "Creates a new AI model on our computer",
+          "Stores the conversation history and sends it with every question",
+          "Encrypts messages before sending"
+        ]
+      },
+      {
+        "q": "What will happen if we send a question with a wrong API key and we do not have <code>try/except<\/code>?",
+        "o": [
+          "The program will show an empty answer",
+          "The program will display a warning and keep running",
+          "The program will freeze and stop working (crash)",
+          "Gemini will automatically fix the key"
+        ]
+      },
+      {
+        "q": "What is a system prompt?",
+        "o": [
+          "The first question asked by the user",
+          "An instruction telling the model how to behave (tone, style, personality)",
+          "A command that installs the library",
+          "A message the model sends at the start"
+        ]
+      },
+      {
+        "q": "Why did we use a dictionary to store the characters instead of many <code>if<\/code> statements?",
+        "o": [
+          "Because a dictionary works faster than if",
+          "Because if does not work in Python with text",
+          "Because a dictionary is more readable and easier to extend with new characters",
+          "Because the Gemini API requires a dictionary"
+        ]
+      },
+      {
+        "q": "What is a disadvantage of using an AI model through an API compared to a local model?",
+        "o": [
+          "The API always gives worse answers",
+          "The API requires the internet, a key and trust in the provider",
+          "The API is always slower",
+          "The API does not support the Polish language"
+        ]
+      }
+    ]
+  },
+  "es": {
+    "ui": {
+      "title": "Quiz — Gemini API - LLM remoto",
+      "header": "Gemini API — Quiz",
+      "retry": "Intentar de nuevo",
+      "fbOk": "✅ ¡Respuesta correcta!",
+      "fbNo": "❌ Lamentablemente, esa no es la respuesta.",
+      "seeResult": "Ver el resultado",
+      "next": "Siguiente →",
+      "check": "Comprobar",
+      "score": "Resultado: {s} / {n}",
+      "msgHigh": "¡Buen trabajo!",
+      "msgMid": "Buen resultado, pero aún hay margen de mejora.",
+      "msgLow": "Conviene repasar el material e intentarlo de nuevo."
+    },
+    "questions": [
+      {
+        "q": "¿Qué comando escribimos en la terminal para instalar la biblioteca de comunicación con Gemini?",
+        "o": [
+          "<code>pip install gemini<\/code>",
+          "<code>pip install google-genai<\/code>",
+          "<code>npm install google-genai<\/code>",
+          "<code>pip install openai<\/code>"
+        ]
+      },
+      {
+        "q": "¿Qué es una clave API?",
+        "o": [
+          "La contraseña de una cuenta de Google",
+          "Un código especial que nos identifica y nos da permiso para usar el servicio",
+          "El número de serie de un ordenador",
+          "El nombre de un modelo de IA"
+        ]
+      },
+      {
+        "q": "¿Dónde conseguimos la clave API de Gemini?",
+        "o": [
+          "En la configuración de Python",
+          "En la página github.com",
+          "En la página aistudio.google.com",
+          "En la terminal con el comando <code>genai --key<\/code>"
+        ]
+      },
+      {
+        "q": "¿Cómo creamos el cliente de la API en la biblioteca <code>google-genai<\/code>?",
+        "o": [
+          "<code>genai.configure(api_key=\"...\")<\/code>",
+          "<code>client = genai.Client(api_key=\"...\")<\/code>",
+          "<code>genai.connect(key=\"...\")<\/code>",
+          "<code>client = genai.login(\"...\")<\/code>"
+        ]
+      },
+      {
+        "q": "¿Por qué el chatbot con Gemini API responde mucho más rápido que el modelo local de la lección anterior?",
+        "o": [
+          "Porque usa un modelo más pequeño",
+          "Porque Python funciona más rápido con la biblioteca google-genai",
+          "Porque los cálculos los realizan potentes servidores de Google, y no nuestro ordenador",
+          "Porque la clave API acelera el funcionamiento del programa"
+        ]
+      },
+      {
+        "q": "¿Qué hace el objeto <code>chat<\/code> creado por <code>client.chats.create()<\/code>?",
+        "o": [
+          "Envía una pregunta puntual sin memoria",
+          "Crea un nuevo modelo de IA en nuestro ordenador",
+          "Guarda el historial de la conversación y lo envía con cada pregunta",
+          "Cifra los mensajes antes de enviarlos"
+        ]
+      },
+      {
+        "q": "¿Qué pasará si enviamos una pregunta con una clave API incorrecta y no tenemos <code>try/except<\/code>?",
+        "o": [
+          "El programa mostrará una respuesta vacía",
+          "El programa mostrará una advertencia y seguirá funcionando",
+          "El programa se bloqueará y dejará de funcionar (crash)",
+          "Gemini corregirá la clave automáticamente"
+        ]
+      },
+      {
+        "q": "¿Qué es un system prompt?",
+        "o": [
+          "La primera pregunta que hace el usuario",
+          "Una instrucción que le dice al modelo cómo debe comportarse (tono, estilo, personalidad)",
+          "Un comando que instala la biblioteca",
+          "Un mensaje que el modelo envía al inicio"
+        ]
+      },
+      {
+        "q": "¿Por qué usamos un diccionario para guardar los personajes en lugar de muchas instrucciones <code>if<\/code>?",
+        "o": [
+          "Porque un diccionario funciona más rápido que if",
+          "Porque if no funciona en Python con texto",
+          "Porque un diccionario es más legible y más fácil de ampliar con nuevos personajes",
+          "Porque Gemini API exige un diccionario"
+        ]
+      },
+      {
+        "q": "¿Qué desventaja tiene usar un modelo de IA a través de una API en comparación con un modelo local?",
+        "o": [
+          "La API siempre da peores respuestas",
+          "La API requiere internet, una clave y confianza en el proveedor",
+          "La API siempre es más lenta",
+          "La API no admite el idioma polaco"
+        ]
+      }
+    ]
+  },
+  "de": {
+    "ui": {
+      "title": "Quiz — Gemini API - Remote-LLM",
+      "header": "Gemini API — Quiz",
+      "retry": "Erneut versuchen",
+      "fbOk": "✅ Richtige Antwort!",
+      "fbNo": "❌ Leider ist das nicht die richtige Antwort.",
+      "seeResult": "Ergebnis ansehen",
+      "next": "Weiter →",
+      "check": "Prüfen",
+      "score": "Ergebnis: {s} / {n}",
+      "msgHigh": "Tolle Arbeit!",
+      "msgMid": "Gutes Ergebnis, aber es gibt noch Luft nach oben.",
+      "msgLow": "Es lohnt sich, den Stoff zu wiederholen und es noch einmal zu versuchen."
+    },
+    "questions": [
+      {
+        "q": "Welchen Befehl geben wir im Terminal ein, um die Bibliothek für die Kommunikation mit Gemini zu installieren?",
+        "o": [
+          "<code>pip install gemini<\/code>",
+          "<code>pip install google-genai<\/code>",
+          "<code>npm install google-genai<\/code>",
+          "<code>pip install openai<\/code>"
+        ]
+      },
+      {
+        "q": "Was ist ein API-Schlüssel?",
+        "o": [
+          "Das Passwort für ein Google-Konto",
+          "Ein spezieller Code, der uns identifiziert und uns die Erlaubnis zur Nutzung des Dienstes gibt",
+          "Die Seriennummer eines Computers",
+          "Der Name eines KI-Modells"
+        ]
+      },
+      {
+        "q": "Wo bekommen wir den API-Schlüssel für Gemini?",
+        "o": [
+          "In den Python-Einstellungen",
+          "Auf der Seite github.com",
+          "Auf der Seite aistudio.google.com",
+          "Im Terminal mit dem Befehl <code>genai --key<\/code>"
+        ]
+      },
+      {
+        "q": "Wie erstellen wir den API-Client in der Bibliothek <code>google-genai<\/code>?",
+        "o": [
+          "<code>genai.configure(api_key=\"...\")<\/code>",
+          "<code>client = genai.Client(api_key=\"...\")<\/code>",
+          "<code>genai.connect(key=\"...\")<\/code>",
+          "<code>client = genai.login(\"...\")<\/code>"
+        ]
+      },
+      {
+        "q": "Warum antwortet der Chatbot mit der Gemini API deutlich schneller als das lokale Modell aus der vorherigen Lektion?",
+        "o": [
+          "Weil er ein kleineres Modell verwendet",
+          "Weil Python mit der Bibliothek google-genai schneller läuft",
+          "Weil die Berechnungen von leistungsstarken Google-Servern und nicht von unserem Computer durchgeführt werden",
+          "Weil der API-Schlüssel das Programm beschleunigt"
+        ]
+      },
+      {
+        "q": "Was macht das Objekt <code>chat<\/code>, das mit <code>client.chats.create()<\/code> erstellt wurde?",
+        "o": [
+          "Sendet eine einmalige Frage ohne Gedächtnis",
+          "Erstellt ein neues KI-Modell auf unserem Computer",
+          "Speichert den Gesprächsverlauf und sendet ihn mit jeder Frage",
+          "Verschlüsselt Nachrichten vor dem Senden"
+        ]
+      },
+      {
+        "q": "Was passiert, wenn wir eine Frage mit einem falschen API-Schlüssel senden und kein <code>try/except<\/code> haben?",
+        "o": [
+          "Das Programm zeigt eine leere Antwort an",
+          "Das Programm zeigt eine Warnung an und läuft weiter",
+          "Das Programm friert ein und hört auf zu funktionieren (Absturz)",
+          "Gemini repariert den Schlüssel automatisch"
+        ]
+      },
+      {
+        "q": "Was ist ein System-Prompt?",
+        "o": [
+          "Die erste Frage, die der Benutzer stellt",
+          "Eine Anweisung, die dem Modell sagt, wie es sich verhalten soll (Ton, Stil, Persönlichkeit)",
+          "Ein Befehl, der die Bibliothek installiert",
+          "Eine Nachricht, die das Modell zu Beginn sendet"
+        ]
+      },
+      {
+        "q": "Warum haben wir zum Speichern der Figuren ein Dictionary statt vieler <code>if<\/code>-Anweisungen verwendet?",
+        "o": [
+          "Weil ein Dictionary schneller arbeitet als if",
+          "Weil if in Python mit Text nicht funktioniert",
+          "Weil ein Dictionary lesbarer ist und sich leichter um neue Figuren erweitern lässt",
+          "Weil die Gemini API ein Dictionary verlangt"
+        ]
+      },
+      {
+        "q": "Welchen Nachteil hat die Nutzung eines KI-Modells über eine API im Vergleich zu einem lokalen Modell?",
+        "o": [
+          "Die API liefert immer schlechtere Antworten",
+          "Die API erfordert Internet, einen Schlüssel und Vertrauen in den Anbieter",
+          "Die API ist immer langsamer",
+          "Die API unterstützt die polnische Sprache nicht"
+        ]
+      }
+    ]
+  }
+};
+
+const LANGS=['pl','en','es','de'];
+let lang='pl';
+const UI=()=>I18N[lang].ui;
+const QS=()=>I18N[lang].questions;
+const fmt=(s,v)=>s.replace(/\{(\w+)\}/g,(_,k)=>v[k]);
+const N=CORRECT.length;
 
 const letters="ABCD";
 let cur=0,sel=null,locked=false,score=0;
 
 function render(){
   const app=document.getElementById("app");
-  if(cur>=Q.length){
-    const pct=Math.round(score/Q.length*100);
+  const ui=UI();
+  if(cur>=N){
+    const pct=Math.round(score/N*100);
     const emoji=pct>=80?"🎉":pct>=50?"👍":"💪";
-    const msg=pct>=80?"Świetna robota!":pct>=50?"Dobry wynik, ale jest jeszcze pole do poprawy.":"Warto powtórzyć materiał i spróbować ponownie.";
+    const msg=pct>=80?ui.msgHigh:pct>=50?ui.msgMid:ui.msgLow;
     app.innerHTML=`
-      <div class="header"><span class="header-title">Gemini API — Quiz</span></div>
+      <div class="header"><span class="header-title">${ui.header}</span></div>
       <div class="progress-track"><div class="progress-fill" style="width:100%"></div></div>
       <div class="card result">
         <div class="result-emoji">${emoji}</div>
-        <div class="result-score">${score} / ${Q.length}</div>
+        <div class="result-score">${score} / ${N}</div>
         <div class="result-pct">${pct}%</div>
         <div class="result-msg">${msg}</div>
-        <button class="btn btn-primary" onclick="restart()">Spróbuj ponownie</button>
+        <button class="btn btn-primary" onclick="restart()">${ui.retry}</button>
       </div>`;
     return;
   }
-  const q=Q[cur];
-  const pct=((cur+(locked?1:0))/Q.length*100).toFixed(1);
+  const q=QS()[cur];
+  const c=CORRECT[cur];
+  const pct=((cur+(locked?1:0))/N*100).toFixed(1);
 
   let optsHtml="";
   q.o.forEach((o,i)=>{
     let cls="opt";
     if(locked){
       cls+=" locked";
-      if(i===q.c) cls+=" correct";
+      if(i===c) cls+=" correct";
       else if(i===sel) cls+=" wrong";
       else cls+=" dimmed";
     } else if(i===sel){
@@ -185,19 +644,19 @@ function render(){
 
   let fbHtml="";
   if(locked){
-    fbHtml=sel===q.c
-      ?`<div class="feedback ok">✅ Poprawna odpowiedź!</div>`
-      :`<div class="feedback nope">❌ Niestety, to nie ta odpowiedź.</div>`;
+    fbHtml=sel===c
+      ?`<div class="feedback ok">${ui.fbOk}</div>`
+      :`<div class="feedback nope">${ui.fbNo}</div>`;
   }
 
-  const btnLabel=locked?(cur+1>=Q.length?"Zobacz wynik":"Następne →"):"Sprawdź";
+  const btnLabel=locked?(cur+1>=N?ui.seeResult:ui.next):ui.check;
   const btnAction=locked?"next()":"confirm()";
   const btnDis=!locked&&sel===null?"disabled":"";
 
   app.innerHTML=`
     <div class="header">
-      <span class="header-title">Gemini API — Quiz</span>
-      <span class="header-counter">${cur+1} / ${Q.length}</span>
+      <span class="header-title">${ui.header}</span>
+      <span class="header-counter">${cur+1} / ${N}</span>
     </div>
     <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
     <div class="card" key="${cur}">
@@ -206,15 +665,34 @@ function render(){
       ${fbHtml}
       <div class="btn-row"><button class="btn btn-primary" onclick="${btnAction}" ${btnDis}>${btnLabel}</button></div>
     </div>
-    <div class="score-pill">Wynik: ${score} / ${cur+(locked?1:0)}</div>`;
+    <div class="score-pill">${fmt(ui.score,{s:score,n:cur+(locked?1:0)})}</div>`;
 }
 
 function pick(i){if(!locked){sel=i;render()}}
-function confirm(){if(sel===null)return;locked=true;if(sel===Q[cur].c)score++;render()}
+function confirm(){if(sel===null)return;locked=true;if(sel===CORRECT[cur])score++;render()}
 function next(){cur++;sel=null;locked=false;render()}
 function restart(){cur=0;sel=null;locked=false;score=0;render()}
 
-render();
+// ---- language switching (quiz state is kept; only texts change) ----
+function setLang(l,persist=true){
+  if(!LANGS.includes(l)) l='pl';
+  lang=l;
+  document.documentElement.lang=l;
+  document.title=UI().title;
+  document.querySelectorAll('.lang-btn').forEach(b=>{
+    const on=b.dataset.lang===l;
+    b.classList.toggle('active',on);
+    b.setAttribute('aria-pressed',on?'true':'false');
+  });
+  if(persist){try{localStorage.setItem('quizLang',l)}catch(e){/* storage unavailable */}}
+  render();
+}
+
+document.querySelectorAll('.lang-btn').forEach(b=>b.addEventListener('click',()=>setLang(b.dataset.lang)));
+
+let startLang='pl';
+try{const saved=localStorage.getItem('quizLang');if(LANGS.includes(saved))startLang=saved}catch(e){/* storage unavailable */}
+setLang(startLang,false);
 </script>
 </body>
 </html>
