@@ -394,6 +394,25 @@
     .option { padding: 12px 14px; }
     .progress { margin: 0 -16px 28px; padding-inline: 16px; }
   }
+
+  /* ─── LANGUAGE SWITCHER ─── */
+  .lang-switch {
+    display: flex; justify-content: center; gap: 4px;
+    width: fit-content; margin: 0 auto 28px; padding: 4px;
+    border: 1px solid var(--border); border-radius: 100px; background: var(--surface);
+    animation: fadeUp 0.6s ease-out both;
+  }
+  .lang-btn {
+    font-family: var(--font-mono); font-size: 13px; font-weight: 600; letter-spacing: 1px;
+    min-width: 46px; padding: 6px 12px; border: none; border-radius: 100px;
+    background: transparent; color: var(--text-muted); cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+  .lang-btn:hover:not(.active) { background: var(--surface-hover); color: var(--text); }
+  .lang-btn.active { background: var(--accent); color: var(--bg); cursor: default; }
+  .lang-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* re-render after a language change: no entrance / feedback animations */
+  .question-card.no-anim, .question-card.no-anim .explanation.show { transition: none; animation: none; }
 </style>
 </head>
 <body>
@@ -403,13 +422,20 @@
 <div class="bg-glow bg-glow--purple"></div>
 
 <div class="container">
+  <div class="lang-switch" role="group" aria-label="Język / Language / Idioma / Sprache">
+    <button type="button" class="lang-btn" data-lang="pl" lang="pl" title="Polski" aria-label="Polski">PL</button>
+    <button type="button" class="lang-btn" data-lang="en" lang="en" title="English" aria-label="English">EN</button>
+    <button type="button" class="lang-btn" data-lang="es" lang="es" title="Español" aria-label="Español">ES</button>
+    <button type="button" class="lang-btn" data-lang="de" lang="de" title="Deutsch" aria-label="Deutsch">DE</button>
+  </div>
+
   <header class="header">
     <div class="header__badge">
       <svg width="16" height="16" fill="none" viewBox="0 0 16 16"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zm0 14.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13zM7 4h2v5H7V4zm0 6h2v2H7v-2z" fill="currentColor"/></svg>
-      QUIZ POWTÓRZENIOWY
+      <span id="tBadge">QUIZ POWTÓRZENIOWY</span>
     </div>
-    <h1 class="header__title">Copilot - pomocny programista AI</h1>
-    <p class="header__sub">12 pytań z lekcji o GitHub Copilot i grze Memory w pygame</p>
+    <h1 class="header__title" id="tTitle">Copilot - pomocny programista AI</h1>
+    <p class="header__sub" id="tSub">12 pytań z lekcji o GitHub Copilot i grze Memory w pygame</p>
   </header>
 
   <div class="progress">
@@ -424,11 +450,11 @@
   <div class="results" id="results">
     <div class="results__emoji" id="resultsEmoji"></div>
     <div class="results__score" id="resultsScore"></div>
-    <div class="results__label">poprawnych odpowiedzi</div>
+    <div class="results__label" id="tResultsLabel">poprawnych odpowiedzi</div>
     <div class="results__message" id="resultsMsg"></div>
     <button class="btn-restart" onclick="location.reload()">
       <svg width="16" height="16" fill="none" viewBox="0 0 16 16"><path d="M2.5 8a5.5 5.5 0 019.3-3.95l-1.8.7a.5.5 0 00.18.96H14a.5.5 0 00.5-.5V1.38a.5.5 0 00-.96-.18l-.7 1.8A7 7 0 101 8a.75.75 0 011.5 0z" fill="currentColor"/></svg>
-      Zagraj ponownie
+      <span id="tRestart">Zagraj ponownie</span>
     </button>
   </div>
 </div>
@@ -436,164 +462,586 @@
 <script>
 "use strict";
 
-const QUESTIONS = [
-  {
-    q: "Czym jest GitHub Copilot?",
-    options: [
-      "Rozszerzeniem do VS Code, które podpowiada kod na podstawie kontekstu projektu",
-      "Osobną aplikacją desktopową do generowania całych programów",
-      "Chatbotem działającym w przeglądarce, podobnym do ChatGPT",
-      "Wtyczką do pygame, która automatycznie tworzy gry"
-    ],
-    correct: 0,
-    explanation: "Copilot to rozszerzenie do edytora kodu (np. VS Code), które czyta otwarty plik, rozumie kontekst i w czasie rzeczywistym proponuje kolejne linie kodu."
+// ─── texts for every language; answers and code samples are shared ───
+const I18N = {
+  "pl": {
+    "ui": {
+      "title": "Quiz - Copilot: pomocny programista AI",
+      "badge": "QUIZ POWTÓRZENIOWY",
+      "h1": "Copilot - pomocny programista AI",
+      "sub": "12 pytań z lekcji o GitHub Copilot i grze Memory w pygame",
+      "qNum": "Pytanie {n} z {total}",
+      "resultsLabel": "poprawnych odpowiedzi",
+      "restart": "Zagraj ponownie",
+      "m100": "Perfekcyjny wynik! Copilot byłby dumny.",
+      "m80": "Świetna robota! Opanowałeś materiał z lekcji.",
+      "m60": "Dobry wynik! Warto powtórzyć kilka zagadnień.",
+      "m0": "Przejrzyj jeszcze raz konspekt i spróbuj ponownie!"
+    },
+    "questions": [
+      {
+        "q": "Czym jest GitHub Copilot?",
+        "options": [
+          "Rozszerzeniem do VS Code, które podpowiada kod na podstawie kontekstu projektu",
+          "Osobną aplikacją desktopową do generowania całych programów",
+          "Chatbotem działającym w przeglądarce, podobnym do ChatGPT",
+          "Wtyczką do pygame, która automatycznie tworzy gry"
+        ],
+        "explanation": "Copilot to rozszerzenie do edytora kodu (np. VS Code), które czyta otwarty plik, rozumie kontekst i w czasie rzeczywistym proponuje kolejne linie kodu."
+      },
+      {
+        "q": "Jak zaakceptować sugestię zaproponowaną przez Copilota w VS Code?",
+        "options": [
+          "Kliknąć prawym przyciskiem myszy i wybrać \"Accept\"",
+          "Nacisnąć Enter",
+          "Nacisnąć Ctrl+S",
+          "Nacisnąć Tab"
+        ],
+        "explanation": "Klawisz Tab akceptuje sugestię Copilota. Jeśli chcemy ją odrzucić, naciskamy Esc."
+      },
+      {
+        "q": "Co zwraca funkcja <code>enumerate(board)</code> w pętli <code>for</code>?",
+        "options": [
+          "Indeks elementu i sam element jednocześnie",
+          "Tylko indeks każdego elementu listy",
+          "Posortowaną kopię listy",
+          "Liczbę elementów w liście"
+        ],
+        "explanation": "Funkcja enumerate() w każdej iteracji zwraca krotkę (indeks, element). Dzięki temu mamy dostęp zarówno do numeru karty, jak i do jej danych."
+      },
+      {
+        "q": "Jaki stan przyjmuje karta po zebraniu pasującej pary?",
+        "options": [
+          "\"collected\"",
+          "\"hidden\"",
+          "\"revealed\"",
+          "\"matched\""
+        ],
+        "explanation": "Stan \"matched\" oznacza, że karta została dopasowana do pary. Funkcja draw_single_card pomija karty z tym stanem, więc znikają z planszy."
+      },
+      {
+        "q": "Co sprawdza metoda <code>card[\"rect\"].collidepoint(pos)</code>?",
+        "options": [
+          "Czy punkt pos (pozycja kursora) znajduje się wewnątrz prostokąta karty",
+          "Czy karta koliduje z inną kartą na planszy",
+          "Czy prostokąt karty dotyka krawędzi okna",
+          "Czy animacja karty dobiegła końca"
+        ],
+        "explanation": "Metoda collidepoint sprawdza, czy podany punkt (x, y) leży wewnątrz prostokąta Rect. Używamy jej do wykrycia, w którą kartę kliknął gracz."
+      },
+      {
+        "q": "Dlaczego w funkcji <code>handle_click</code> na końcu pętli jest instrukcja <code>break</code>?",
+        "options": [
+          "Żeby pętla nie szukała kolejnych kart pasujących do tego samego kliknięcia",
+          "Żeby program nie zgłosił błędu IndexError",
+          "Żeby animacja karty rozpoczęła się natychmiast",
+          "Jedno kliknięcie dotyczy dokładnie jednej karty, więc nie ma sensu kontynuować pętli"
+        ],
+        "explanation": "Gracz klika w jedno miejsce i odkrywa jedną kartę. Po znalezieniu tej karty dalsza iteracja po liście jest zbędna - break kończy pętlę."
+      },
+      {
+        "q": "Co stanie się, jeśli w funkcji <code>check_pair</code> pominiemy wywołanie <code>selected.clear()</code>?",
+        "options": [
+          "Lista selected będzie ciągle pełna i gracz nie będzie mógł klikać nowych kart",
+          "Gra się zawiesi na ekranie ładowania",
+          "Karty będą się odkrywać po trzy naraz",
+          "Program zgłosi błąd TypeError przy następnym kliknięciu"
+        ],
+        "explanation": "Główna pętla gry sprawdza warunek len(selected) < 2 przed wywołaniem handle_click. Bez wyczyszczenia listy warunek nigdy nie będzie spełniony i gracz nie odkryje kolejnych kart."
+      },
+      {
+        "q": "Do czego służy flaga <code>pygame.SRCALPHA</code> przy tworzeniu powierzchni ekranu wygranej?",
+        "options": [
+          "Przyspiesza renderowanie grafiki na karcie graficznej",
+          "Blokuje kliknięcia myszy na tej powierzchni",
+          "Zmienia paletę kolorów na odcienie szarości",
+          "Pozwala na półprzezroczystość - nakładka przyciemnia ekran, ale nie zakrywa go całkowicie"
+        ],
+        "explanation": "SRCALPHA dodaje kanał alfa do powierzchni. Dzięki temu fill((0, 0, 0, 150)) tworzy czarną nakładkę z przezroczystością, przez którą prześwituje plansza."
+      },
+      {
+        "q": "Co zwraca wyrażenie <code>all(c[\"state\"] == \"matched\" for c in board)</code>?",
+        "options": [
+          "True, gdy każda karta na planszy ma stan \"matched\"",
+          "Liczbę kart ze stanem \"matched\"",
+          "Listę kart, które mają stan \"matched\"",
+          "True, gdy przynajmniej jedna karta ma stan \"matched\""
+        ],
+        "explanation": "Funkcja all() zwraca True tylko wtedy, gdy każdy element spełnia podany warunek. Używamy jej do wykrycia wygranej - wszystkie 16 kart muszą być zebrane."
+      },
+      {
+        "q": "Dlaczego ważne jest krytyczne ocenianie sugestii Copilota zamiast ślepego akceptowania?",
+        "options": [
+          "Bo Copilot celowo generuje błędny kod, żeby testować programistów",
+          "Bo sugestie Copilota są zawsze w języku angielskim",
+          "Bo Copilot może podpowiadać tylko jedną linię na raz",
+          "Bo Copilot przewiduje kod na podstawie wzorców i nie zawsze rozumie nasz dokładny zamiar"
+        ],
+        "explanation": "Copilot to model statystyczny - proponuje kod, który wygląda prawdopodobnie w danym kontekście. Nie rozumie logiki gry, więc może zasugerować coś składniowo poprawnego, ale logicznie błędnego."
+      },
+      {
+        "q": "Co kontroluje zmienna <code>anim</code> w strukturze karty?",
+        "options": [
+          "Postęp animacji odwracania karty - maleje od 1.0 do 0.0, sterując efektem obrotu",
+          "Numer klatki animacji wyświetlanej na ekranie",
+          "Kąt obrotu karty w stopniach",
+          "Czas w sekundach od ostatniego kliknięcia"
+        ],
+        "explanation": "Zmienna anim startuje od 1.0 i maleje do 0.0. W połowie (0.5) karta jest \"niewidoczna\" - wtedy podmienia się obrazek z rewersu na awers. To tworzy złudzenie obrotu."
+      },
+      {
+        "q": "Co się dzieje w głównej pętli gry, gdy <code>freeze_timer</code> odlicza do zera?",
+        "options": [
+          "Gra się resetuje do stanu początkowego",
+          "Wszystkie karty na planszy zostają zakryte",
+          "Ekran wygranej pojawia się automatycznie",
+          "Wywoływana jest funkcja check_pair, która sprawdza, czy dwie odkryte karty pasują do siebie"
+        ],
+        "explanation": "freeze_timer daje graczowi sekundę na zobaczenie obu odkrytych kart, zanim gra zdecyduje, czy to para. Po odliczeniu check_pair porównuje wartości kart i zbiera parę lub zakrywa karty."
+      }
+    ]
   },
-  {
-    q: "Jak zaakceptować sugestię zaproponowaną przez Copilota w VS Code?",
-    options: [
-      "Kliknąć prawym przyciskiem myszy i wybrać \"Accept\"",
-      "Nacisnąć Enter",
-      "Nacisnąć Ctrl+S",
-      "Nacisnąć Tab"
-    ],
-    correct: 3,
-    explanation: "Klawisz Tab akceptuje sugestię Copilota. Jeśli chcemy ją odrzucić, naciskamy Esc."
+  "en": {
+    "ui": {
+      "title": "Quiz - Copilot: a helpful AI programmer",
+      "badge": "REVIEW QUIZ",
+      "h1": "Copilot - a helpful AI programmer",
+      "sub": "12 questions from the lesson on GitHub Copilot and the Memory game in pygame",
+      "qNum": "Question {n} of {total}",
+      "resultsLabel": "correct answers",
+      "restart": "Play again",
+      "m100": "A perfect score! Copilot would be proud.",
+      "m80": "Great job! You have mastered the lesson material.",
+      "m60": "Good result! It's worth reviewing a few topics.",
+      "m0": "Go through the lesson notes again and try once more!"
+    },
+    "questions": [
+      {
+        "q": "What is GitHub Copilot?",
+        "options": [
+          "An extension for VS Code that suggests code based on the project context",
+          "A separate desktop app for generating entire programs",
+          "A chatbot that runs in the browser, similar to ChatGPT",
+          "A pygame plugin that creates games automatically"
+        ],
+        "explanation": "Copilot is an extension for a code editor (e.g. VS Code) that reads the open file, understands the context and suggests the next lines of code in real time."
+      },
+      {
+        "q": "How do you accept a suggestion proposed by Copilot in VS Code?",
+        "options": [
+          "Right-click and choose \"Accept\"",
+          "Press Enter",
+          "Press Ctrl+S",
+          "Press Tab"
+        ],
+        "explanation": "The Tab key accepts Copilot's suggestion. If we want to reject it, we press Esc."
+      },
+      {
+        "q": "What does the <code>enumerate(board)</code> function return in a <code>for</code> loop?",
+        "options": [
+          "The index of the element and the element itself at the same time",
+          "Only the index of each list element",
+          "A sorted copy of the list",
+          "The number of elements in the list"
+        ],
+        "explanation": "In each iteration, enumerate() returns a tuple (index, element). This gives us access both to the card's number and to its data."
+      },
+      {
+        "q": "What state does a card get after a matching pair is collected?",
+        "options": [
+          "\"collected\"",
+          "\"hidden\"",
+          "\"revealed\"",
+          "\"matched\""
+        ],
+        "explanation": "The \"matched\" state means the card has been matched into a pair. The draw_single_card function skips cards in this state, so they disappear from the board."
+      },
+      {
+        "q": "What does the <code>card[\"rect\"].collidepoint(pos)</code> method check?",
+        "options": [
+          "Whether the point pos (the cursor position) is inside the card's rectangle",
+          "Whether the card collides with another card on the board",
+          "Whether the card's rectangle touches the edge of the window",
+          "Whether the card's animation has finished"
+        ],
+        "explanation": "The collidepoint method checks whether the given point (x, y) lies inside the Rect. We use it to detect which card the player clicked."
+      },
+      {
+        "q": "Why is there a <code>break</code> statement at the end of the loop in the <code>handle_click</code> function?",
+        "options": [
+          "So that the loop doesn't look for more cards matching the same click",
+          "So that the program doesn't raise an IndexError",
+          "So that the card animation starts immediately",
+          "One click concerns exactly one card, so there is no point in continuing the loop"
+        ],
+        "explanation": "The player clicks in one place and reveals one card. Once that card is found, further iteration over the list is unnecessary - break ends the loop."
+      },
+      {
+        "q": "What happens if we leave out the <code>selected.clear()</code> call in the <code>check_pair</code> function?",
+        "options": [
+          "The selected list will stay full and the player won't be able to click new cards",
+          "The game will freeze on the loading screen",
+          "Cards will be revealed three at a time",
+          "The program will raise a TypeError on the next click"
+        ],
+        "explanation": "The main game loop checks the condition len(selected) < 2 before calling handle_click. Without clearing the list, the condition will never be met and the player won't reveal any more cards."
+      },
+      {
+        "q": "What is the <code>pygame.SRCALPHA</code> flag used for when creating the win screen surface?",
+        "options": [
+          "It speeds up rendering graphics on the graphics card",
+          "It blocks mouse clicks on this surface",
+          "It changes the color palette to shades of gray",
+          "It allows semi-transparency - the overlay darkens the screen but doesn't cover it completely"
+        ],
+        "explanation": "SRCALPHA adds an alpha channel to the surface. Thanks to this, fill((0, 0, 0, 150)) creates a black overlay with transparency, through which the board shows."
+      },
+      {
+        "q": "What does the expression <code>all(c[\"state\"] == \"matched\" for c in board)</code> return?",
+        "options": [
+          "True when every card on the board is in the \"matched\" state",
+          "The number of cards in the \"matched\" state",
+          "A list of the cards in the \"matched\" state",
+          "True when at least one card is in the \"matched\" state"
+        ],
+        "explanation": "The all() function returns True only when every element meets the given condition. We use it to detect a win - all 16 cards have to be collected."
+      },
+      {
+        "q": "Why is it important to critically evaluate Copilot's suggestions instead of accepting them blindly?",
+        "options": [
+          "Because Copilot deliberately generates wrong code to test programmers",
+          "Because Copilot's suggestions are always in English",
+          "Because Copilot can only suggest one line at a time",
+          "Because Copilot predicts code based on patterns and doesn't always understand our exact intention"
+        ],
+        "explanation": "Copilot is a statistical model - it suggests code that looks likely in a given context. It doesn't understand the game's logic, so it may suggest something syntactically correct but logically wrong."
+      },
+      {
+        "q": "What does the <code>anim</code> variable control in the card structure?",
+        "options": [
+          "The progress of the card-flip animation - it decreases from 1.0 to 0.0, driving the rotation effect",
+          "The number of the animation frame shown on the screen",
+          "The card's rotation angle in degrees",
+          "The time in seconds since the last click"
+        ],
+        "explanation": "The anim variable starts at 1.0 and decreases to 0.0. Halfway (0.5) the card is \"invisible\" - that is when the image switches from the back to the front. This creates the illusion of a flip."
+      },
+      {
+        "q": "What happens in the main game loop when <code>freeze_timer</code> counts down to zero?",
+        "options": [
+          "The game resets to its initial state",
+          "All cards on the board are covered",
+          "The win screen appears automatically",
+          "The check_pair function is called, which checks whether the two revealed cards match"
+        ],
+        "explanation": "freeze_timer gives the player a second to see both revealed cards before the game decides whether they are a pair. After the countdown, check_pair compares the card values and either collects the pair or covers the cards."
+      }
+    ]
   },
-  {
-    q: "Co zwraca funkcja <code>enumerate(board)</code> w pętli <code>for</code>?",
-    options: [
-      "Indeks elementu i sam element jednocześnie",
-      "Tylko indeks każdego elementu listy",
-      "Posortowaną kopię listy",
-      "Liczbę elementów w liście"
-    ],
-    correct: 0,
-    explanation: "Funkcja enumerate() w każdej iteracji zwraca krotkę (indeks, element). Dzięki temu mamy dostęp zarówno do numeru karty, jak i do jej danych."
+  "es": {
+    "ui": {
+      "title": "Quiz - Copilot: un programador de IA que te ayuda",
+      "badge": "QUIZ DE REPASO",
+      "h1": "Copilot - un programador de IA que te ayuda",
+      "sub": "12 preguntas de la lección sobre GitHub Copilot y el juego Memory en pygame",
+      "qNum": "Pregunta {n} de {total}",
+      "resultsLabel": "respuestas correctas",
+      "restart": "Jugar de nuevo",
+      "m100": "¡Puntuación perfecta! Copilot estaría orgulloso.",
+      "m80": "¡Buen trabajo! Dominas el material de la lección.",
+      "m60": "¡Buen resultado! Conviene repasar algunos temas.",
+      "m0": "¡Revisa de nuevo los apuntes de la lección e inténtalo otra vez!"
+    },
+    "questions": [
+      {
+        "q": "¿Qué es GitHub Copilot?",
+        "options": [
+          "Una extensión para VS Code que sugiere código basándose en el contexto del proyecto",
+          "Una aplicación de escritorio independiente para generar programas completos",
+          "Un chatbot que funciona en el navegador, parecido a ChatGPT",
+          "Un complemento de pygame que crea juegos automáticamente"
+        ],
+        "explanation": "Copilot es una extensión para el editor de código (p. ej. VS Code) que lee el archivo abierto, entiende el contexto y propone en tiempo real las siguientes líneas de código."
+      },
+      {
+        "q": "¿Cómo se acepta una sugerencia propuesta por Copilot en VS Code?",
+        "options": [
+          "Hacer clic con el botón derecho y elegir \"Accept\"",
+          "Pulsar Enter",
+          "Pulsar Ctrl+S",
+          "Pulsar Tab"
+        ],
+        "explanation": "La tecla Tab acepta la sugerencia de Copilot. Si queremos rechazarla, pulsamos Esc."
+      },
+      {
+        "q": "¿Qué devuelve la función <code>enumerate(board)</code> en un bucle <code>for</code>?",
+        "options": [
+          "El índice del elemento y el propio elemento a la vez",
+          "Solo el índice de cada elemento de la lista",
+          "Una copia ordenada de la lista",
+          "El número de elementos de la lista"
+        ],
+        "explanation": "En cada iteración, enumerate() devuelve una tupla (índice, elemento). Gracias a ello tenemos acceso tanto al número de la carta como a sus datos."
+      },
+      {
+        "q": "¿Qué estado toma una carta después de recoger una pareja coincidente?",
+        "options": [
+          "\"collected\"",
+          "\"hidden\"",
+          "\"revealed\"",
+          "\"matched\""
+        ],
+        "explanation": "El estado \"matched\" significa que la carta ha sido emparejada. La función draw_single_card omite las cartas con este estado, por lo que desaparecen del tablero."
+      },
+      {
+        "q": "¿Qué comprueba el método <code>card[\"rect\"].collidepoint(pos)</code>?",
+        "options": [
+          "Si el punto pos (la posición del cursor) está dentro del rectángulo de la carta",
+          "Si la carta choca con otra carta del tablero",
+          "Si el rectángulo de la carta toca el borde de la ventana",
+          "Si la animación de la carta ha terminado"
+        ],
+        "explanation": "El método collidepoint comprueba si el punto dado (x, y) está dentro del rectángulo Rect. Lo usamos para detectar en qué carta ha hecho clic el jugador."
+      },
+      {
+        "q": "¿Por qué hay una instrucción <code>break</code> al final del bucle en la función <code>handle_click</code>?",
+        "options": [
+          "Para que el bucle no busque más cartas que coincidan con el mismo clic",
+          "Para que el programa no lance un error IndexError",
+          "Para que la animación de la carta empiece inmediatamente",
+          "Un clic afecta exactamente a una carta, así que no tiene sentido continuar el bucle"
+        ],
+        "explanation": "El jugador hace clic en un lugar y descubre una carta. Una vez encontrada esa carta, seguir recorriendo la lista es innecesario - break termina el bucle."
+      },
+      {
+        "q": "¿Qué pasará si en la función <code>check_pair</code> omitimos la llamada <code>selected.clear()</code>?",
+        "options": [
+          "La lista selected estará siempre llena y el jugador no podrá hacer clic en nuevas cartas",
+          "El juego se quedará colgado en la pantalla de carga",
+          "Las cartas se descubrirán de tres en tres",
+          "El programa lanzará un error TypeError en el siguiente clic"
+        ],
+        "explanation": "El bucle principal del juego comprueba la condición len(selected) < 2 antes de llamar a handle_click. Si no se vacía la lista, la condición nunca se cumplirá y el jugador no descubrirá más cartas."
+      },
+      {
+        "q": "¿Para qué sirve la opción <code>pygame.SRCALPHA</code> al crear la superficie de la pantalla de victoria?",
+        "options": [
+          "Acelera el renderizado de gráficos en la tarjeta gráfica",
+          "Bloquea los clics del ratón en esta superficie",
+          "Cambia la paleta de colores a tonos de gris",
+          "Permite la semitransparencia - la capa oscurece la pantalla, pero no la cubre por completo"
+        ],
+        "explanation": "SRCALPHA añade un canal alfa a la superficie. Gracias a ello, fill((0, 0, 0, 150)) crea una capa negra con transparencia a través de la cual se ve el tablero."
+      },
+      {
+        "q": "¿Qué devuelve la expresión <code>all(c[\"state\"] == \"matched\" for c in board)</code>?",
+        "options": [
+          "True cuando todas las cartas del tablero tienen el estado \"matched\"",
+          "El número de cartas con el estado \"matched\"",
+          "Una lista de las cartas que tienen el estado \"matched\"",
+          "True cuando al menos una carta tiene el estado \"matched\""
+        ],
+        "explanation": "La función all() devuelve True solo cuando todos los elementos cumplen la condición dada. La usamos para detectar la victoria - hay que recoger las 16 cartas."
+      },
+      {
+        "q": "¿Por qué es importante evaluar críticamente las sugerencias de Copilot en lugar de aceptarlas a ciegas?",
+        "options": [
+          "Porque Copilot genera código erróneo a propósito para poner a prueba a los programadores",
+          "Porque las sugerencias de Copilot siempre están en inglés",
+          "Porque Copilot solo puede sugerir una línea cada vez",
+          "Porque Copilot predice el código a partir de patrones y no siempre entiende nuestra intención exacta"
+        ],
+        "explanation": "Copilot es un modelo estadístico - propone código que parece probable en un contexto dado. No entiende la lógica del juego, así que puede sugerir algo sintácticamente correcto pero lógicamente erróneo."
+      },
+      {
+        "q": "¿Qué controla la variable <code>anim</code> en la estructura de la carta?",
+        "options": [
+          "El progreso de la animación de giro de la carta - disminuye de 1.0 a 0.0 y controla el efecto de giro",
+          "El número del fotograma de la animación que se muestra en pantalla",
+          "El ángulo de giro de la carta en grados",
+          "El tiempo en segundos desde el último clic"
+        ],
+        "explanation": "La variable anim empieza en 1.0 y disminuye hasta 0.0. A la mitad (0.5) la carta es \"invisible\" - en ese momento la imagen cambia del reverso al anverso. Esto crea la ilusión de giro."
+      },
+      {
+        "q": "¿Qué ocurre en el bucle principal del juego cuando <code>freeze_timer</code> llega a cero?",
+        "options": [
+          "El juego se reinicia a su estado inicial",
+          "Todas las cartas del tablero se tapan",
+          "La pantalla de victoria aparece automáticamente",
+          "Se llama a la función check_pair, que comprueba si las dos cartas descubiertas coinciden"
+        ],
+        "explanation": "freeze_timer le da al jugador un segundo para ver las dos cartas descubiertas antes de que el juego decida si son pareja. Tras la cuenta atrás, check_pair compara los valores de las cartas y recoge la pareja o tapa las cartas."
+      }
+    ]
   },
-  {
-    q: "Jaki stan przyjmuje karta po zebraniu pasującej pary?",
-    options: [
-      "\"collected\"",
-      "\"hidden\"",
-      "\"revealed\"",
-      "\"matched\""
-    ],
-    correct: 3,
-    explanation: "Stan \"matched\" oznacza, że karta została dopasowana do pary. Funkcja draw_single_card pomija karty z tym stanem, więc znikają z planszy."
-  },
-  {
-    q: "Co sprawdza metoda <code>card[\"rect\"].collidepoint(pos)</code>?",
-    options: [
-      "Czy punkt pos (pozycja kursora) znajduje się wewnątrz prostokąta karty",
-      "Czy karta koliduje z inną kartą na planszy",
-      "Czy prostokąt karty dotyka krawędzi okna",
-      "Czy animacja karty dobiegła końca"
-    ],
-    correct: 0,
-    explanation: "Metoda collidepoint sprawdza, czy podany punkt (x, y) leży wewnątrz prostokąta Rect. Używamy jej do wykrycia, w którą kartę kliknął gracz."
-  },
-  {
-    q: "Dlaczego w funkcji <code>handle_click</code> na końcu pętli jest instrukcja <code>break</code>?",
-    code: '<span class="kw">for</span> i, card <span class="kw">in</span> <span class="fn">enumerate</span>(board):\n    <span class="kw">if</span> card[<span class="str">"rect"</span>].<span class="fn">collidepoint</span>(pos) <span class="kw">and</span> card[<span class="str">"state"</span>] == <span class="str">"hidden"</span>:\n        card[<span class="str">"state"</span>] = <span class="str">"revealing"</span>\n        selected.<span class="fn">append</span>(i)\n        <span class="kw">break</span>',
-    options: [
-      "Żeby pętla nie szukała kolejnych kart pasujących do tego samego kliknięcia",
-      "Żeby program nie zgłosił błędu IndexError",
-      "Żeby animacja karty rozpoczęła się natychmiast",
-      "Jedno kliknięcie dotyczy dokładnie jednej karty, więc nie ma sensu kontynuować pętli"
-    ],
-    correct: 3,
-    explanation: "Gracz klika w jedno miejsce i odkrywa jedną kartę. Po znalezieniu tej karty dalsza iteracja po liście jest zbędna - break kończy pętlę."
-  },
-  {
-    q: "Co stanie się, jeśli w funkcji <code>check_pair</code> pominiemy wywołanie <code>selected.clear()</code>?",
-    options: [
-      "Lista selected będzie ciągle pełna i gracz nie będzie mógł klikać nowych kart",
-      "Gra się zawiesi na ekranie ładowania",
-      "Karty będą się odkrywać po trzy naraz",
-      "Program zgłosi błąd TypeError przy następnym kliknięciu"
-    ],
-    correct: 0,
-    explanation: "Główna pętla gry sprawdza warunek len(selected) < 2 przed wywołaniem handle_click. Bez wyczyszczenia listy warunek nigdy nie będzie spełniony i gracz nie odkryje kolejnych kart."
-  },
-  {
-    q: "Do czego służy flaga <code>pygame.SRCALPHA</code> przy tworzeniu powierzchni ekranu wygranej?",
-    options: [
-      "Przyspiesza renderowanie grafiki na karcie graficznej",
-      "Blokuje kliknięcia myszy na tej powierzchni",
-      "Zmienia paletę kolorów na odcienie szarości",
-      "Pozwala na półprzezroczystość - nakładka przyciemnia ekran, ale nie zakrywa go całkowicie"
-    ],
-    correct: 3,
-    explanation: "SRCALPHA dodaje kanał alfa do powierzchni. Dzięki temu fill((0, 0, 0, 150)) tworzy czarną nakładkę z przezroczystością, przez którą prześwituje plansza."
-  },
-  {
-    q: "Co zwraca wyrażenie <code>all(c[\"state\"] == \"matched\" for c in board)</code>?",
-    options: [
-      "True, gdy każda karta na planszy ma stan \"matched\"",
-      "Liczbę kart ze stanem \"matched\"",
-      "Listę kart, które mają stan \"matched\"",
-      "True, gdy przynajmniej jedna karta ma stan \"matched\""
-    ],
-    correct: 0,
-    explanation: "Funkcja all() zwraca True tylko wtedy, gdy każdy element spełnia podany warunek. Używamy jej do wykrycia wygranej - wszystkie 16 kart muszą być zebrane."
-  },
-  {
-    q: "Dlaczego ważne jest krytyczne ocenianie sugestii Copilota zamiast ślepego akceptowania?",
-    options: [
-      "Bo Copilot celowo generuje błędny kod, żeby testować programistów",
-      "Bo sugestie Copilota są zawsze w języku angielskim",
-      "Bo Copilot może podpowiadać tylko jedną linię na raz",
-      "Bo Copilot przewiduje kod na podstawie wzorców i nie zawsze rozumie nasz dokładny zamiar"
-    ],
-    correct: 3,
-    explanation: "Copilot to model statystyczny - proponuje kod, który wygląda prawdopodobnie w danym kontekście. Nie rozumie logiki gry, więc może zasugerować coś składniowo poprawnego, ale logicznie błędnego."
-  },
-  {
-    q: "Co kontroluje zmienna <code>anim</code> w strukturze karty?",
-    code: '<span class="kw">def</span> <span class="fn">animate_card</span>(card, dt):\n    <span class="kw">if</span> card[<span class="str">"state"</span>] == <span class="str">"revealing"</span>:\n        card[<span class="str">"anim"</span>] -= dt * <span class="num">5</span>\n        <span class="kw">if</span> card[<span class="str">"anim"</span>] <= <span class="num">0</span>:\n            card[<span class="str">"anim"</span>] = <span class="num">0</span>\n            card[<span class="str">"state"</span>] = <span class="str">"revealed"</span>',
-    options: [
-      "Postęp animacji odwracania karty - maleje od 1.0 do 0.0, sterując efektem obrotu",
-      "Numer klatki animacji wyświetlanej na ekranie",
-      "Kąt obrotu karty w stopniach",
-      "Czas w sekundach od ostatniego kliknięcia"
-    ],
-    correct: 0,
-    explanation: "Zmienna anim startuje od 1.0 i maleje do 0.0. W połowie (0.5) karta jest \"niewidoczna\" - wtedy podmienia się obrazek z rewersu na awers. To tworzy złudzenie obrotu."
-  },
-  {
-    q: "Co się dzieje w głównej pętli gry, gdy <code>freeze_timer</code> odlicza do zera?",
-    code: '<span class="kw">if</span> freeze_timer > <span class="num">0</span>:\n    freeze_timer -= dt\n    <span class="kw">if</span> freeze_timer <= <span class="num">0</span>:\n        <span class="fn">check_pair</span>()',
-    options: [
-      "Gra się resetuje do stanu początkowego",
-      "Wszystkie karty na planszy zostają zakryte",
-      "Ekran wygranej pojawia się automatycznie",
-      "Wywoływana jest funkcja check_pair, która sprawdza, czy dwie odkryte karty pasują do siebie"
-    ],
-    correct: 3,
-    explanation: "freeze_timer daje graczowi sekundę na zobaczenie obu odkrytych kart, zanim gra zdecyduje, czy to para. Po odliczeniu check_pair porównuje wartości kart i zbiera parę lub zakrywa karty."
+  "de": {
+    "ui": {
+      "title": "Quiz - Copilot: ein hilfreicher KI-Programmierer",
+      "badge": "WIEDERHOLUNGSQUIZ",
+      "h1": "Copilot - ein hilfreicher KI-Programmierer",
+      "sub": "12 Fragen aus der Lektion über GitHub Copilot und das Memory-Spiel in pygame",
+      "qNum": "Frage {n} von {total}",
+      "resultsLabel": "richtige Antworten",
+      "restart": "Nochmal spielen",
+      "m100": "Perfektes Ergebnis! Copilot wäre stolz.",
+      "m80": "Tolle Arbeit! Du beherrschst den Stoff der Lektion.",
+      "m60": "Gutes Ergebnis! Es lohnt sich, ein paar Themen zu wiederholen.",
+      "m0": "Sieh dir die Lektionsunterlagen noch einmal an und versuche es erneut!"
+    },
+    "questions": [
+      {
+        "q": "Was ist GitHub Copilot?",
+        "options": [
+          "Eine Erweiterung für VS Code, die Code auf Grundlage des Projektkontexts vorschlägt",
+          "Eine eigenständige Desktop-App zum Erzeugen ganzer Programme",
+          "Ein Chatbot, der im Browser läuft, ähnlich wie ChatGPT",
+          "Ein pygame-Plugin, das automatisch Spiele erstellt"
+        ],
+        "explanation": "Copilot ist eine Erweiterung für einen Code-Editor (z. B. VS Code), die die geöffnete Datei liest, den Kontext versteht und in Echtzeit die nächsten Codezeilen vorschlägt."
+      },
+      {
+        "q": "Wie übernimmt man einen Vorschlag von Copilot in VS Code?",
+        "options": [
+          "Mit der rechten Maustaste klicken und \"Accept\" wählen",
+          "Enter drücken",
+          "Strg+S drücken",
+          "Tab drücken"
+        ],
+        "explanation": "Die Tab-Taste übernimmt den Vorschlag von Copilot. Wenn wir ihn ablehnen wollen, drücken wir Esc."
+      },
+      {
+        "q": "Was gibt die Funktion <code>enumerate(board)</code> in einer <code>for</code>-Schleife zurück?",
+        "options": [
+          "Den Index des Elements und das Element selbst gleichzeitig",
+          "Nur den Index jedes Listenelements",
+          "Eine sortierte Kopie der Liste",
+          "Die Anzahl der Elemente in der Liste"
+        ],
+        "explanation": "enumerate() gibt in jedem Durchlauf ein Tupel (Index, Element) zurück. Dadurch haben wir sowohl auf die Nummer der Karte als auch auf ihre Daten Zugriff."
+      },
+      {
+        "q": "Welchen Zustand bekommt eine Karte, nachdem ein passendes Paar eingesammelt wurde?",
+        "options": [
+          "\"collected\"",
+          "\"hidden\"",
+          "\"revealed\"",
+          "\"matched\""
+        ],
+        "explanation": "Der Zustand \"matched\" bedeutet, dass die Karte einem Paar zugeordnet wurde. Die Funktion draw_single_card überspringt Karten mit diesem Zustand, daher verschwinden sie vom Spielfeld."
+      },
+      {
+        "q": "Was prüft die Methode <code>card[\"rect\"].collidepoint(pos)</code>?",
+        "options": [
+          "Ob der Punkt pos (die Mausposition) innerhalb des Rechtecks der Karte liegt",
+          "Ob die Karte mit einer anderen Karte auf dem Spielfeld kollidiert",
+          "Ob das Rechteck der Karte den Fensterrand berührt",
+          "Ob die Animation der Karte beendet ist"
+        ],
+        "explanation": "Die Methode collidepoint prüft, ob der angegebene Punkt (x, y) innerhalb des Rect liegt. Wir verwenden sie, um zu erkennen, auf welche Karte der Spieler geklickt hat."
+      },
+      {
+        "q": "Warum steht in der Funktion <code>handle_click</code> am Ende der Schleife die Anweisung <code>break</code>?",
+        "options": [
+          "Damit die Schleife nicht nach weiteren Karten sucht, die zum selben Klick passen",
+          "Damit das Programm keinen IndexError auslöst",
+          "Damit die Animation der Karte sofort beginnt",
+          "Ein Klick betrifft genau eine Karte, daher ist es sinnlos, die Schleife fortzusetzen"
+        ],
+        "explanation": "Der Spieler klickt auf eine Stelle und deckt eine Karte auf. Sobald diese Karte gefunden ist, ist ein weiteres Durchlaufen der Liste überflüssig - break beendet die Schleife."
+      },
+      {
+        "q": "Was passiert, wenn wir in der Funktion <code>check_pair</code> den Aufruf <code>selected.clear()</code> weglassen?",
+        "options": [
+          "Die Liste selected bleibt voll und der Spieler kann keine neuen Karten anklicken",
+          "Das Spiel hängt sich im Ladebildschirm auf",
+          "Die Karten werden immer zu dritt aufgedeckt",
+          "Das Programm löst beim nächsten Klick einen TypeError aus"
+        ],
+        "explanation": "Die Hauptschleife des Spiels prüft vor dem Aufruf von handle_click die Bedingung len(selected) < 2. Ohne das Leeren der Liste ist die Bedingung nie erfüllt und der Spieler kann keine weiteren Karten aufdecken."
+      },
+      {
+        "q": "Wozu dient das Flag <code>pygame.SRCALPHA</code> beim Erstellen der Oberfläche für den Gewinnbildschirm?",
+        "options": [
+          "Es beschleunigt das Rendern der Grafik auf der Grafikkarte",
+          "Es blockiert Mausklicks auf dieser Oberfläche",
+          "Es ändert die Farbpalette in Graustufen",
+          "Es ermöglicht Halbtransparenz - die Überlagerung verdunkelt den Bildschirm, verdeckt ihn aber nicht vollständig"
+        ],
+        "explanation": "SRCALPHA fügt der Oberfläche einen Alphakanal hinzu. Dadurch erzeugt fill((0, 0, 0, 150)) eine schwarze, transparente Überlagerung, durch die das Spielfeld durchscheint."
+      },
+      {
+        "q": "Was gibt der Ausdruck <code>all(c[\"state\"] == \"matched\" for c in board)</code> zurück?",
+        "options": [
+          "True, wenn jede Karte auf dem Spielfeld den Zustand \"matched\" hat",
+          "Die Anzahl der Karten mit dem Zustand \"matched\"",
+          "Eine Liste der Karten mit dem Zustand \"matched\"",
+          "True, wenn mindestens eine Karte den Zustand \"matched\" hat"
+        ],
+        "explanation": "Die Funktion all() gibt nur dann True zurück, wenn jedes Element die angegebene Bedingung erfüllt. Wir verwenden sie, um einen Sieg zu erkennen - alle 16 Karten müssen eingesammelt sein."
+      },
+      {
+        "q": "Warum ist es wichtig, die Vorschläge von Copilot kritisch zu prüfen, statt sie blind zu übernehmen?",
+        "options": [
+          "Weil Copilot absichtlich fehlerhaften Code erzeugt, um Programmierer zu testen",
+          "Weil die Vorschläge von Copilot immer auf Englisch sind",
+          "Weil Copilot immer nur eine Zeile auf einmal vorschlagen kann",
+          "Weil Copilot Code anhand von Mustern vorhersagt und nicht immer unsere genaue Absicht versteht"
+        ],
+        "explanation": "Copilot ist ein statistisches Modell - es schlägt Code vor, der im jeweiligen Kontext wahrscheinlich aussieht. Es versteht die Spiellogik nicht und kann daher etwas syntaktisch Korrektes, aber logisch Falsches vorschlagen."
+      },
+      {
+        "q": "Was steuert die Variable <code>anim</code> in der Kartenstruktur?",
+        "options": [
+          "Den Fortschritt der Umdreh-Animation der Karte - sie sinkt von 1.0 auf 0.0 und steuert den Dreheffekt",
+          "Die Nummer des auf dem Bildschirm angezeigten Animationsbilds",
+          "Den Drehwinkel der Karte in Grad",
+          "Die Zeit in Sekunden seit dem letzten Klick"
+        ],
+        "explanation": "Die Variable anim beginnt bei 1.0 und sinkt auf 0.0. In der Mitte (0.5) ist die Karte \"unsichtbar\" - dann wird das Bild von der Rückseite auf die Vorderseite gewechselt. So entsteht die Illusion einer Drehung."
+      },
+      {
+        "q": "Was passiert in der Hauptschleife des Spiels, wenn <code>freeze_timer</code> auf null heruntergezählt hat?",
+        "options": [
+          "Das Spiel wird auf den Anfangszustand zurückgesetzt",
+          "Alle Karten auf dem Spielfeld werden zugedeckt",
+          "Der Gewinnbildschirm erscheint automatisch",
+          "Die Funktion check_pair wird aufgerufen, die prüft, ob die beiden aufgedeckten Karten zusammenpassen"
+        ],
+        "explanation": "freeze_timer gibt dem Spieler eine Sekunde, um beide aufgedeckten Karten zu sehen, bevor das Spiel entscheidet, ob es ein Paar ist. Nach dem Herunterzählen vergleicht check_pair die Werte der Karten und sammelt das Paar ein oder deckt die Karten wieder zu."
+      }
+    ]
   }
-];
+};
+const CORRECT = [0, 3, 0, 3, 0, 3, 0, 3, 0, 3, 0, 3];
+const CODE = [null, null, null, null, null, "<span class=\"kw\">for</span> i, card <span class=\"kw\">in</span> <span class=\"fn\">enumerate</span>(board):\n    <span class=\"kw\">if</span> card[<span class=\"str\">\"rect\"</span>].<span class=\"fn\">collidepoint</span>(pos) <span class=\"kw\">and</span> card[<span class=\"str\">\"state\"</span>] == <span class=\"str\">\"hidden\"</span>:\n        card[<span class=\"str\">\"state\"</span>] = <span class=\"str\">\"revealing\"</span>\n        selected.<span class=\"fn\">append</span>(i)\n        <span class=\"kw\">break</span>", null, null, null, null, "<span class=\"kw\">def</span> <span class=\"fn\">animate_card</span>(card, dt):\n    <span class=\"kw\">if</span> card[<span class=\"str\">\"state\"</span>] == <span class=\"str\">\"revealing\"</span>:\n        card[<span class=\"str\">\"anim\"</span>] -= dt * <span class=\"num\">5</span>\n        <span class=\"kw\">if</span> card[<span class=\"str\">\"anim\"</span>] <= <span class=\"num\">0</span>:\n            card[<span class=\"str\">\"anim\"</span>] = <span class=\"num\">0</span>\n            card[<span class=\"str\">\"state\"</span>] = <span class=\"str\">\"revealed\"</span>", "<span class=\"kw\">if</span> freeze_timer > <span class=\"num\">0</span>:\n    freeze_timer -= dt\n    <span class=\"kw\">if</span> freeze_timer <= <span class=\"num\">0</span>:\n        <span class=\"fn\">check_pair</span>()"];
+const LANGS = ["pl", "en", "es", "de"];
+const TOTAL = CORRECT.length;
+let lang = "pl";
+const T = () => I18N[lang].ui;
+const QS = () => I18N[lang].questions;
+const fmt = (s, v) => s.replace(/\{(\w+)\}/g, (_, k) => v[k]);
 
 let answered = 0;
 let score = 0;
+const chosen = new Array(TOTAL).fill(null);   // option picked for each question
+let resultsShown = false;
 const container = document.getElementById("quizContainer");
 
-function renderQuiz() {
-  QUESTIONS.forEach((q, idx) => {
+function renderQuiz(animate) {
+  container.innerHTML = "";
+  QS().forEach((q, idx) => {
     const card = document.createElement("div");
     card.className = "question-card";
     card.id = `q${idx}`;
 
     const letters = ["A", "B", "C", "D"];
-    let codeBlock = "";
-    if (q.code) {
-      codeBlock = `<div class="question-card__code">${q.code}</div>`;
-    } else {
-      codeBlock = `<div class="question-card__spacer"></div>`;
-    }
+    const codeBlock = CODE[idx]
+      ? `<div class="question-card__code">${CODE[idx]}</div>`
+      : `<div class="question-card__spacer"></div>`;
 
     card.innerHTML = `
-      <div class="question-card__number">Pytanie ${idx + 1} z ${QUESTIONS.length}</div>
+      <div class="question-card__number">${fmt(T().qNum, { n: idx + 1, total: TOTAL })}</div>
       <div class="question-card__text">${q.q}</div>
       ${codeBlock}
       <div class="options">
@@ -607,72 +1055,111 @@ function renderQuiz() {
       <div class="explanation" id="expl${idx}">${q.explanation}</div>
     `;
 
+    if (!animate) card.classList.add("no-anim", "visible");
     container.appendChild(card);
-
-    setTimeout(() => card.classList.add("visible"), 80 * idx);
+    if (animate) setTimeout(() => card.classList.add("visible"), 80 * idx);
+    if (chosen[idx] !== null) markAnswer(idx, chosen[idx], false);
   });
 }
 
-function selectAnswer(el, qIdx, oIdx) {
+function markAnswer(qIdx, oIdx, withFx) {
   const card = document.getElementById(`q${qIdx}`);
   const options = card.querySelectorAll(".option");
-  const question = QUESTIONS[qIdx];
-
   options.forEach(o => o.classList.add("disabled"));
-
-  const isCorrect = oIdx === question.correct;
-
-  if (isCorrect) {
-    el.classList.add("selected-correct");
-    card.classList.add("correct", "pop");
-    score++;
+  if (oIdx === CORRECT[qIdx]) {
+    options[oIdx].classList.add("selected-correct");
+    card.classList.add("correct");
+    if (withFx) card.classList.add("pop");
   } else {
-    el.classList.add("selected-wrong");
-    card.classList.add("wrong", "shake");
-    options[question.correct].classList.add("reveal-correct");
+    options[oIdx].classList.add("selected-wrong");
+    card.classList.add("wrong");
+    if (withFx) card.classList.add("shake");
+    options[CORRECT[qIdx]].classList.add("reveal-correct");
   }
+  document.getElementById(`expl${qIdx}`).classList.add("show");
+}
 
-  const expl = document.getElementById(`expl${qIdx}`);
-  expl.classList.add("show");
+function selectAnswer(el, qIdx, oIdx) {
+  if (chosen[qIdx] !== null) return;
+  chosen[qIdx] = oIdx;
+  if (oIdx === CORRECT[qIdx]) score++;
+  markAnswer(qIdx, oIdx, true);
 
   answered++;
   updateProgress();
 
-  if (answered === QUESTIONS.length) {
+  if (answered === TOTAL) {
     setTimeout(showResults, 800);
   }
 }
 
 function updateProgress() {
-  const pct = (answered / QUESTIONS.length) * 100;
+  const pct = (answered / TOTAL) * 100;
   document.getElementById("progressFill").style.width = pct + "%";
-  document.getElementById("progressLabel").textContent = `${answered} / ${QUESTIONS.length}`;
+  document.getElementById("progressLabel").textContent = `${answered} / ${TOTAL}`;
+}
+
+function renderResults() {
+  const pct = Math.round((score / TOTAL) * 100);
+  const ui = T();
+  let emoji, msg;
+  if (pct === 100) { emoji = "🏆"; msg = ui.m100; }
+  else if (pct >= 80) { emoji = "🎉"; msg = ui.m80; }
+  else if (pct >= 60) { emoji = "💪"; msg = ui.m60; }
+  else { emoji = "📖"; msg = ui.m0; }
+  document.getElementById("resultsEmoji").textContent = emoji;
+  document.getElementById("resultsScore").textContent = `${score} / ${TOTAL}`;
+  document.getElementById("resultsMsg").textContent = msg;
 }
 
 function showResults() {
-  const pct = Math.round((score / QUESTIONS.length) * 100);
+  resultsShown = true;
+  renderResults();
   const res = document.getElementById("results");
-
-  let emoji, msg;
-  if (pct === 100) {
-    emoji = "🏆"; msg = "Perfekcyjny wynik! Copilot byłby dumny.";
-  } else if (pct >= 80) {
-    emoji = "🎉"; msg = "Świetna robota! Opanowałeś materiał z lekcji.";
-  } else if (pct >= 60) {
-    emoji = "💪"; msg = "Dobry wynik! Warto powtórzyć kilka zagadnień.";
-  } else {
-    emoji = "📖"; msg = "Przejrzyj jeszcze raz konspekt i spróbuj ponownie!";
-  }
-
-  document.getElementById("resultsEmoji").textContent = emoji;
-  document.getElementById("resultsScore").textContent = `${score} / ${QUESTIONS.length}`;
-  document.getElementById("resultsMsg").textContent = msg;
   res.classList.add("show");
-
   setTimeout(() => res.scrollIntoView({ behavior: "smooth", block: "center" }), 200);
 }
 
-renderQuiz();
+// ─── language switching: keeps answers, score and the results screen ───
+function setLang(l, persist = true, first = false) {
+  if (!LANGS.includes(l)) l = "pl";
+  // remember which question is at the top of the screen, so the page doesn't jump
+  let anchor = null, anchorTop = 0;
+  if (!first) {
+    for (const c of container.children) {
+      const r = c.getBoundingClientRect();
+      if (r.bottom > 0) { anchor = c.id; anchorTop = r.top; break; }
+    }
+  }
+  lang = l;
+  const ui = T();
+  document.documentElement.lang = l;
+  document.title = ui.title;
+  document.getElementById("tBadge").textContent = ui.badge;
+  document.getElementById("tTitle").textContent = ui.h1;
+  document.getElementById("tSub").textContent = ui.sub;
+  document.getElementById("tResultsLabel").textContent = ui.resultsLabel;
+  document.getElementById("tRestart").textContent = ui.restart;
+  document.querySelectorAll(".lang-btn").forEach(b => {
+    const on = b.dataset.lang === l;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  if (persist) { try { localStorage.setItem("quizLang", l); } catch (e) { /* storage unavailable */ } }
+
+  renderQuiz(first);
+  if (resultsShown) renderResults();
+  if (anchor) {
+    const el = document.getElementById(anchor);
+    if (el) window.scrollBy(0, el.getBoundingClientRect().top - anchorTop);
+  }
+}
+
+document.querySelectorAll(".lang-btn").forEach(b => b.addEventListener("click", () => setLang(b.dataset.lang)));
+
+let startLang = "pl";
+try { const saved = localStorage.getItem("quizLang"); if (LANGS.includes(saved)) startLang = saved; } catch (e) { /* storage unavailable */ }
+setLang(startLang, false, true);
 </script>
 
 </body>
