@@ -219,6 +219,17 @@
     .card{padding:1.25rem 1rem}
     header h1{font-size:1.4rem}
   }
+
+  /* --- language switcher --- */
+  .lang-switch{display:flex;justify-content:center;gap:4px;width:fit-content;margin:0 auto 1.75rem;padding:4px;
+    background:var(--surface);border:1px solid var(--border);border-radius:999px}
+  .lang-btn{font-family:'Space Mono',monospace;font-size:.75rem;font-weight:700;letter-spacing:.1em;min-width:44px;
+    padding:.4rem .75rem;border:none;border-radius:999px;background:transparent;color:var(--text-dim);cursor:pointer;
+    transition:background .2s,color .2s}
+  .lang-btn:hover:not(.active){background:var(--surface-hi);color:var(--text)}
+  .lang-btn.active{background:var(--cyan);color:var(--bg);cursor:default}
+  .lang-btn:focus-visible{outline:2px solid var(--magenta);outline-offset:2px}
+  .no-anim .explanation.show{animation:none}
 </style>
 </head>
 <body>
@@ -226,10 +237,17 @@
 <div class="stars" id="stars"></div>
 
 <div class="wrap">
+  <div class="lang-switch" role="group" aria-label="Język / Language / Idioma / Sprache">
+    <button type="button" class="lang-btn" data-lang="pl" lang="pl" title="Polski" aria-label="Polski">PL</button>
+    <button type="button" class="lang-btn" data-lang="en" lang="en" title="English" aria-label="English">EN</button>
+    <button type="button" class="lang-btn" data-lang="es" lang="es" title="Español" aria-label="Español">ES</button>
+    <button type="button" class="lang-btn" data-lang="de" lang="de" title="Deutsch" aria-label="Deutsch">DE</button>
+  </div>
+
   <header>
-    <div class="badge">Powtorka z lekcji</div>
+    <div class="badge" id="tBadge">Powtorka z lekcji</div>
     <h1>Copilot Chat &amp; Vibe Coding</h1>
-    <p>10 pytań o budowaniu Space Shootera z AI</p>
+    <p id="tSub">10 pytań o budowaniu Space Shootera z AI</p>
   </header>
 
   <div class="progress-wrap">
@@ -242,127 +260,500 @@
 
   <div class="results hidden" id="results">
     <div class="score" id="res-score"></div>
-    <div class="label">poprawnych odpowiedzi</div>
+    <div class="label" id="tResultsLabel">poprawnych odpowiedzi</div>
     <div class="verdict" id="res-verdict"></div>
-    <button class="btn-restart" onclick="restart()">Zagraj ponownie</button>
+    <button class="btn-restart" id="tRestart" onclick="restart()">Zagraj ponownie</button>
   </div>
 </div>
 
 <script>
-const DATA = [
-  {
-    q: "Czym różni się Copilot Chat od autouzupełniania Copilota?",
-    opts: [
-      "Copilot Chat działa tylko offline, a autouzupełnianie wymaga internetu",
-      "Copilot Chat generuje całe bloki kodu na podstawie opisu w języku naturalnym, a autouzupełnianie podpowiada fragmenty w trakcie pisania",
-      "Autouzupełnianie jest nowsze i lepsze od Copilot Chat",
-      "Copilot Chat służy tylko do zadawania pytań, nie generuje kodu"
-    ],
-    correct: 1,
-    explain: "Autouzupełnianie reaguje na kod, który piszemy i dopisuje dalsze fragmenty. Copilot Chat to okienko rozmowy, w którym opisujemy co chcemy, a AI generuje gotowy kod - to pełna rozmowa z modelem."
+const I18N = {
+  "pl": {
+    "ui": {
+      "title": "Quiz - Copilot Chat & Vibe Coding",
+      "badge": "Powtorka z lekcji",
+      "sub": "10 pytań o budowaniu Space Shootera z AI",
+      "qNum": "Pytanie {n} z {total}",
+      "next": "Następne pytanie →",
+      "seeResult": "Zobacz wynik →",
+      "resultsLabel": "poprawnych odpowiedzi",
+      "restart": "Zagraj ponownie",
+      "v100": "🚀 Perfekcyjnie! Vibe coding nie ma przed Tobą tajemnic!",
+      "v80": "🎯 Świetny wynik! Masz solidne podstawy vibe codingu.",
+      "v60": "👍 Dobra robota! Warto powtórzyć kilka zagadnień.",
+      "v40": "💡 Niezły start - przejrzyj materiał z lekcji jeszcze raz.",
+      "v0": "📖 Warto wrócić do lekcji i powtórzyć kluczowe pojęcia!"
+    },
+    "questions": [
+      {
+        "q": "Czym różni się Copilot Chat od autouzupełniania Copilota?",
+        "opts": [
+          "Copilot Chat działa tylko offline, a autouzupełnianie wymaga internetu",
+          "Copilot Chat generuje całe bloki kodu na podstawie opisu w języku naturalnym, a autouzupełnianie podpowiada fragmenty w trakcie pisania",
+          "Autouzupełnianie jest nowsze i lepsze od Copilot Chat",
+          "Copilot Chat służy tylko do zadawania pytań, nie generuje kodu"
+        ],
+        "explain": "Autouzupełnianie reaguje na kod, który piszemy i dopisuje dalsze fragmenty. Copilot Chat to okienko rozmowy, w którym opisujemy co chcemy, a AI generuje gotowy kod - to pełna rozmowa z modelem."
+      },
+      {
+        "q": "Jaki jest prawidłowy cykl pracy w vibe codingu?",
+        "opts": [
+          "Napisz cały kod → przetestuj na koniec → wyślij do klienta",
+          "Opisz co chcesz → wygeneruj kod → przetestuj → popraw prompt, jeśli trzeba",
+          "Skopiuj kod z internetu → wklej → uruchom",
+          "Wygeneruj całą grę jednym promptem → oddaj gotowy projekt"
+        ],
+        "explain": "Vibe coding opiera się na cyklu: opisujemy element gry w języku naturalnym, AI generuje kod, testujemy wynik i iterujemy - poprawiamy prompt, aż efekt będzie taki jak chcieliśmy."
+      },
+      {
+        "q": "Dlaczego budujemy grę element po elemencie zamiast generować ją jednym promptem?",
+        "opts": [
+          "Copilot Chat nie potrafi wygenerować dużego programu",
+          "Bo tak wymagają zasady lekcji i nic więcej",
+          "Budowanie krok po kroku daje lepszą kontrolę nad wynikiem i pozwala zrozumieć, jak elementy ze sobą współpracują",
+          "Bo jeden prompt byłby za drogi"
+        ],
+        "explain": "Podejście krok po kroku pozwala kontrolować każdy element z osobna. Wiemy co robi każdy fragment, a jeśli coś nie działa, łatwo znaleźć przyczynę. Jeden wielki prompt daje mniejszą kontrolę."
+      },
+      {
+        "q": "Po co od samego początku prosimy Copilot Chat o strukturę opartą na klasach?",
+        "opts": [
+          "Klasy sprawiają, że program działa szybciej",
+          "Klasy porządkują kod - każda odpowiada za jeden element gry, więc łatwiej dodawać nowe rzeczy bez psucia reszty",
+          "Bez klas pygame w ogóle nie działa",
+          "Klasy są wymagane przez Copilot Chat, inaczej nie wygeneruje kodu"
+        ],
+        "explain": "Klasy takie jak Player, Enemy, Bullet i Game dzielą kod na logiczne części. Dzięki temu dodawanie nowych funkcji (np. kolizji albo power-upów) nie wymaga przepisywania całości."
+      },
+      {
+        "q": "Co powinniśmy zrobić natychmiast po tym, jak Copilot Chat wygeneruje kod?",
+        "opts": [
+          "Od razu poprosić o kolejny element gry",
+          "Zamknąć VS Code i otworzyć ponownie",
+          "Kliknąć Apply, zapisać plik, uruchomić grę i przetestować wynik",
+          "Skopiować kod na dysk zewnętrzny"
+        ],
+        "explain": "Po wygenerowaniu kodu zawsze wstawiamy go do pliku (Apply), zapisujemy i testujemy. Jeśli coś nie działa jak powinno, wracamy do Copilot Chat i poprawiamy prompt. Nigdy nie idziemy dalej bez testu."
+      },
+      {
+        "q": "Dlaczego usuwamy pociski, które wyleciały poza ekran gry?",
+        "opts": [
+          "Żeby nie kolidowały z wrogami poza ekranem",
+          "Żeby nie zajmowały pamięci - bez usuwania lista rośnie bez końca i gra zwalnia",
+          "Pociski poza ekranem powodują błąd pygame",
+          "To wymóg systemu operacyjnego"
+        ],
+        "explain": "Każdy pocisk to obiekt w pamięci. Gdybyśmy ich nie usuwali po opuszczeniu ekranu, z każdym strzałem lista pocisków rosłaby bez końca. Po pewnym czasie gra zacząłaby zauważalnie zwalniać."
+      },
+      {
+        "q": "Po co dodajemy nietykalność gracza po stracie życia?",
+        "opts": [
+          "Żeby gra była łatwiejsza dla początkujących",
+          "Żeby jeden wróg nie zabrał kilku żyć naraz, bo gracz dotykałby go przez więcej niż jedną klatkę",
+          "Żeby sprite gracza wyglądał ciekawiej",
+          "Żeby Copilot Chat miał więcej kodu do wygenerowania"
+        ],
+        "explain": "Bez nietykalności zderzenie z wrogiem trwające kilka klatek gry mogłoby zabrać wszystkie życia naraz. Dwusekundowa nietykalność z miganiem chroni gracza i daje mu wizualny sygnał, że jest chwilowo bezpieczny."
+      },
+      {
+        "q": "Co robi pętla gry (game loop) w każdej klatce?",
+        "opts": [
+          "Tylko rysuje obraz na ekranie",
+          "Sprawdza naciśnięte klawisze, przesuwa obiekty i rysuje nowy obraz na ekranie",
+          "Łączy się z internetem i pobiera nowe zasoby",
+          "Zapisuje stan gry do pliku"
+        ],
+        "explain": "Pętla gry działa w nieskończoność z częstotliwością 60 klatek na sekundę. W każdej klatce obsługuje wejście gracza (klawisze), aktualizuje pozycje obiektów (ruch, kolizje) i rysuje wszystko od nowa na ekranie."
+      },
+      {
+        "q": "Jak Copilot Chat wie, do którego pliku dodać nowy kod?",
+        "opts": [
+          "Zawsze tworzy nowy plik dla każdego prompta",
+          "Widzi kontekst otwartego pliku w edytorze, dlatego ważne jest, żeby main.py był otwarty",
+          "Nie wie - trzeba mu podać pełną ścieżkę systemową",
+          "Czyta wszystkie pliki na dysku komputera"
+        ],
+        "explain": "Copilot Chat korzysta z kontekstu otwartego pliku w VS Code. Dlatego przed każdym promptem upewniamy się, że main.py jest otwarty w edytorze. Możemy też wskazać plik w treści prompta (np. \"Dodaj do main.py...\")."
+      },
+      {
+        "q": "Dlaczego po wygenerowaniu kodu warto poprosić Copilot Chat o wyjaśnienie tego, co napisał?",
+        "opts": [
+          "Żeby sprawdzić, czy Copilot nie popełnił błędu ortograficznego",
+          "Vibe coding nie zwalnia z rozumienia kodu - pytanie o wyjaśnienie buduje nawyk świadomej pracy z AI",
+          "Bo Copilot generuje komentarze tylko na żądanie",
+          "Żeby wydłużyć lekcję"
+        ],
+        "explain": "Generowanie kodu przez AI nie oznacza, że nie musimy go rozumieć. Pytanie Copilot Chat o wyjaśnienie buduje nawyk świadomej pracy - wiemy co robi każdy fragment, a w razie błędu potrafimy go zlokalizować."
+      }
+    ]
   },
-  {
-    q: "Jaki jest prawidłowy cykl pracy w vibe codingu?",
-    opts: [
-      "Napisz cały kod → przetestuj na koniec → wyślij do klienta",
-      "Opisz co chcesz → wygeneruj kod → przetestuj → popraw prompt, jeśli trzeba",
-      "Skopiuj kod z internetu → wklej → uruchom",
-      "Wygeneruj całą grę jednym promptem → oddaj gotowy projekt"
-    ],
-    correct: 1,
-    explain: "Vibe coding opiera się na cyklu: opisujemy element gry w języku naturalnym, AI generuje kod, testujemy wynik i iterujemy - poprawiamy prompt, aż efekt będzie taki jak chcieliśmy."
+  "en": {
+    "ui": {
+      "title": "Quiz - Copilot Chat & Vibe Coding",
+      "badge": "Lesson review",
+      "sub": "10 questions about building a Space Shooter with AI",
+      "qNum": "Question {n} of {total}",
+      "next": "Next question →",
+      "seeResult": "See the result →",
+      "resultsLabel": "correct answers",
+      "restart": "Play again",
+      "v100": "🚀 Perfect! Vibe coding holds no secrets for you!",
+      "v80": "🎯 Great score! You have a solid grasp of the vibe coding basics.",
+      "v60": "👍 Good job! It's worth reviewing a few topics.",
+      "v40": "💡 A decent start - go through the lesson material once more.",
+      "v0": "📖 It's worth going back to the lesson and reviewing the key concepts!"
+    },
+    "questions": [
+      {
+        "q": "How does Copilot Chat differ from Copilot's autocomplete?",
+        "opts": [
+          "Copilot Chat only works offline, while autocomplete requires the internet",
+          "Copilot Chat generates whole blocks of code from a description in natural language, while autocomplete suggests fragments as you type",
+          "Autocomplete is newer and better than Copilot Chat",
+          "Copilot Chat is only for asking questions, it doesn't generate code"
+        ],
+        "explain": "Autocomplete reacts to the code we write and adds further fragments. Copilot Chat is a chat window in which we describe what we want and the AI generates ready-made code - it's a full conversation with the model."
+      },
+      {
+        "q": "What is the correct workflow in vibe coding?",
+        "opts": [
+          "Write all the code → test at the end → send it to the client",
+          "Describe what you want → generate the code → test → improve the prompt if needed",
+          "Copy code from the internet → paste → run",
+          "Generate the whole game with one prompt → hand in the finished project"
+        ],
+        "explain": "Vibe coding is based on a cycle: we describe a game element in natural language, the AI generates the code, we test the result and iterate - we improve the prompt until the effect is what we wanted."
+      },
+      {
+        "q": "Why do we build the game element by element instead of generating it with one prompt?",
+        "opts": [
+          "Copilot Chat can't generate a big program",
+          "Because the lesson rules say so and nothing more",
+          "Building step by step gives better control over the result and helps us understand how the elements work together",
+          "Because one prompt would be too expensive"
+        ],
+        "explain": "The step-by-step approach lets us control each element separately. We know what each fragment does, and if something doesn't work, it's easy to find the cause. One huge prompt gives less control."
+      },
+      {
+        "q": "Why do we ask Copilot Chat for a class-based structure right from the start?",
+        "opts": [
+          "Classes make the program run faster",
+          "Classes organize the code - each one is responsible for one game element, so it's easier to add new things without breaking the rest",
+          "Without classes pygame doesn't work at all",
+          "Classes are required by Copilot Chat, otherwise it won't generate code"
+        ],
+        "explain": "Classes such as Player, Enemy, Bullet and Game split the code into logical parts. Thanks to this, adding new features (e.g. collisions or power-ups) doesn't require rewriting everything."
+      },
+      {
+        "q": "What should we do immediately after Copilot Chat generates the code?",
+        "opts": [
+          "Immediately ask for the next game element",
+          "Close VS Code and open it again",
+          "Click Apply, save the file, run the game and test the result",
+          "Copy the code to an external drive"
+        ],
+        "explain": "After the code is generated, we always insert it into the file (Apply), save it and test it. If something doesn't work as it should, we go back to Copilot Chat and improve the prompt. We never move on without testing."
+      },
+      {
+        "q": "Why do we remove bullets that have flown off the game screen?",
+        "opts": [
+          "So that they don't collide with enemies off the screen",
+          "So that they don't take up memory - without removing them the list grows endlessly and the game slows down",
+          "Bullets off the screen cause a pygame error",
+          "It's a requirement of the operating system"
+        ],
+        "explain": "Every bullet is an object in memory. If we didn't remove them after they leave the screen, the list of bullets would grow endlessly with every shot. After a while the game would start to slow down noticeably."
+      },
+      {
+        "q": "Why do we add player invincibility after losing a life?",
+        "opts": [
+          "To make the game easier for beginners",
+          "So that one enemy doesn't take several lives at once, because the player would be touching it for more than one frame",
+          "To make the player's sprite look more interesting",
+          "So that Copilot Chat has more code to generate"
+        ],
+        "explain": "Without invincibility, a collision with an enemy lasting a few game frames could take all lives at once. Two-second invincibility with blinking protects the player and gives a visual signal that they are temporarily safe."
+      },
+      {
+        "q": "What does the game loop do in every frame?",
+        "opts": [
+          "It only draws the image on the screen",
+          "It checks pressed keys, moves objects and draws a new image on the screen",
+          "It connects to the internet and downloads new assets",
+          "It saves the game state to a file"
+        ],
+        "explain": "The game loop runs endlessly at 60 frames per second. In every frame it handles player input (keys), updates object positions (movement, collisions) and redraws everything on the screen."
+      },
+      {
+        "q": "How does Copilot Chat know which file to add the new code to?",
+        "opts": [
+          "It always creates a new file for each prompt",
+          "It sees the context of the file open in the editor, which is why it's important for main.py to be open",
+          "It doesn't - you have to give it the full system path",
+          "It reads all the files on the computer's disk"
+        ],
+        "explain": "Copilot Chat uses the context of the file open in VS Code. That's why before each prompt we make sure main.py is open in the editor. We can also point to the file in the prompt itself (e.g. \"Add to main.py...\")."
+      },
+      {
+        "q": "Why is it worth asking Copilot Chat to explain what it wrote after generating the code?",
+        "opts": [
+          "To check whether Copilot made a spelling mistake",
+          "Vibe coding doesn't release you from understanding the code - asking for an explanation builds the habit of working consciously with AI",
+          "Because Copilot only generates comments on request",
+          "To make the lesson longer"
+        ],
+        "explain": "Code being generated by AI doesn't mean we don't have to understand it. Asking Copilot Chat for an explanation builds the habit of working consciously - we know what each fragment does, and if there's an error, we can find it."
+      }
+    ]
   },
-  {
-    q: "Dlaczego budujemy grę element po elemencie zamiast generować ją jednym promptem?",
-    opts: [
-      "Copilot Chat nie potrafi wygenerować dużego programu",
-      "Bo tak wymagają zasady lekcji i nic więcej",
-      "Budowanie krok po kroku daje lepszą kontrolę nad wynikiem i pozwala zrozumieć, jak elementy ze sobą współpracują",
-      "Bo jeden prompt byłby za drogi"
-    ],
-    correct: 2,
-    explain: "Podejście krok po kroku pozwala kontrolować każdy element z osobna. Wiemy co robi każdy fragment, a jeśli coś nie działa, łatwo znaleźć przyczynę. Jeden wielki prompt daje mniejszą kontrolę."
+  "es": {
+    "ui": {
+      "title": "Quiz - Copilot Chat & Vibe Coding",
+      "badge": "Repaso de la lección",
+      "sub": "10 preguntas sobre cómo construir un Space Shooter con IA",
+      "qNum": "Pregunta {n} de {total}",
+      "next": "Siguiente pregunta →",
+      "seeResult": "Ver el resultado →",
+      "resultsLabel": "respuestas correctas",
+      "restart": "Jugar de nuevo",
+      "v100": "🚀 ¡Perfecto! ¡El vibe coding no tiene secretos para ti!",
+      "v80": "🎯 ¡Muy buen resultado! Tienes una base sólida de vibe coding.",
+      "v60": "👍 ¡Buen trabajo! Conviene repasar algunos temas.",
+      "v40": "💡 Buen comienzo - repasa otra vez el material de la lección.",
+      "v0": "📖 ¡Conviene volver a la lección y repasar los conceptos clave!"
+    },
+    "questions": [
+      {
+        "q": "¿En qué se diferencia Copilot Chat del autocompletado de Copilot?",
+        "opts": [
+          "Copilot Chat solo funciona sin conexión, y el autocompletado necesita internet",
+          "Copilot Chat genera bloques enteros de código a partir de una descripción en lenguaje natural, y el autocompletado sugiere fragmentos mientras escribes",
+          "El autocompletado es más nuevo y mejor que Copilot Chat",
+          "Copilot Chat solo sirve para hacer preguntas, no genera código"
+        ],
+        "explain": "El autocompletado reacciona al código que escribimos y añade más fragmentos. Copilot Chat es una ventana de chat en la que describimos lo que queremos y la IA genera código listo - es una conversación completa con el modelo."
+      },
+      {
+        "q": "¿Cuál es el ciclo de trabajo correcto en el vibe coding?",
+        "opts": [
+          "Escribe todo el código → pruébalo al final → envíalo al cliente",
+          "Describe lo que quieres → genera el código → pruébalo → mejora el prompt si hace falta",
+          "Copia código de internet → pégalo → ejecútalo",
+          "Genera todo el juego con un solo prompt → entrega el proyecto terminado"
+        ],
+        "explain": "El vibe coding se basa en un ciclo: describimos un elemento del juego en lenguaje natural, la IA genera el código, probamos el resultado e iteramos - mejoramos el prompt hasta que el efecto sea el que queríamos."
+      },
+      {
+        "q": "¿Por qué construimos el juego elemento a elemento en lugar de generarlo con un solo prompt?",
+        "opts": [
+          "Copilot Chat no es capaz de generar un programa grande",
+          "Porque lo exigen las reglas de la lección y nada más",
+          "Construir paso a paso da más control sobre el resultado y permite entender cómo colaboran los elementos entre sí",
+          "Porque un solo prompt sería demasiado caro"
+        ],
+        "explain": "El enfoque paso a paso permite controlar cada elemento por separado. Sabemos lo que hace cada fragmento y, si algo no funciona, es fácil encontrar la causa. Un único prompt enorme da menos control."
+      },
+      {
+        "q": "¿Para qué le pedimos desde el principio a Copilot Chat una estructura basada en clases?",
+        "opts": [
+          "Las clases hacen que el programa funcione más rápido",
+          "Las clases ordenan el código - cada una se encarga de un elemento del juego, así que es más fácil añadir cosas nuevas sin estropear el resto",
+          "Sin clases pygame no funciona en absoluto",
+          "Copilot Chat exige clases; si no, no genera código"
+        ],
+        "explain": "Clases como Player, Enemy, Bullet y Game dividen el código en partes lógicas. Gracias a ello, añadir nuevas funciones (p. ej. colisiones o power-ups) no obliga a reescribirlo todo."
+      },
+      {
+        "q": "¿Qué debemos hacer justo después de que Copilot Chat genere el código?",
+        "opts": [
+          "Pedir enseguida el siguiente elemento del juego",
+          "Cerrar VS Code y volver a abrirlo",
+          "Hacer clic en Apply, guardar el archivo, ejecutar el juego y probar el resultado",
+          "Copiar el código a un disco externo"
+        ],
+        "explain": "Después de generar el código, siempre lo insertamos en el archivo (Apply), lo guardamos y lo probamos. Si algo no funciona como debería, volvemos a Copilot Chat y mejoramos el prompt. Nunca seguimos sin probar."
+      },
+      {
+        "q": "¿Por qué eliminamos las balas que han salido de la pantalla del juego?",
+        "opts": [
+          "Para que no choquen con enemigos fuera de la pantalla",
+          "Para que no ocupen memoria - si no se eliminan, la lista crece sin fin y el juego se ralentiza",
+          "Las balas fuera de la pantalla provocan un error de pygame",
+          "Es un requisito del sistema operativo"
+        ],
+        "explain": "Cada bala es un objeto en memoria. Si no las elimináramos al salir de la pantalla, la lista de balas crecería sin fin con cada disparo. Al cabo de un tiempo el juego empezaría a ir notablemente más lento."
+      },
+      {
+        "q": "¿Para qué añadimos invulnerabilidad al jugador después de perder una vida?",
+        "opts": [
+          "Para que el juego sea más fácil para los principiantes",
+          "Para que un solo enemigo no quite varias vidas a la vez, porque el jugador lo tocaría durante más de un fotograma",
+          "Para que el sprite del jugador se vea más interesante",
+          "Para que Copilot Chat tenga más código que generar"
+        ],
+        "explain": "Sin invulnerabilidad, un choque con un enemigo que dura varios fotogramas podría quitar todas las vidas a la vez. Dos segundos de invulnerabilidad con parpadeo protegen al jugador y le dan una señal visual de que está a salvo por un momento."
+      },
+      {
+        "q": "¿Qué hace el bucle del juego (game loop) en cada fotograma?",
+        "opts": [
+          "Solo dibuja la imagen en la pantalla",
+          "Comprueba las teclas pulsadas, mueve los objetos y dibuja una nueva imagen en la pantalla",
+          "Se conecta a internet y descarga nuevos recursos",
+          "Guarda el estado del juego en un archivo"
+        ],
+        "explain": "El bucle del juego funciona sin fin a 60 fotogramas por segundo. En cada fotograma gestiona la entrada del jugador (teclas), actualiza las posiciones de los objetos (movimiento, colisiones) y vuelve a dibujarlo todo en la pantalla."
+      },
+      {
+        "q": "¿Cómo sabe Copilot Chat a qué archivo debe añadir el nuevo código?",
+        "opts": [
+          "Siempre crea un archivo nuevo para cada prompt",
+          "Ve el contexto del archivo abierto en el editor; por eso es importante que main.py esté abierto",
+          "No lo sabe - hay que darle la ruta completa del sistema",
+          "Lee todos los archivos del disco del ordenador"
+        ],
+        "explain": "Copilot Chat usa el contexto del archivo abierto en VS Code. Por eso, antes de cada prompt nos aseguramos de que main.py esté abierto en el editor. También podemos indicar el archivo en el propio prompt (p. ej. \"Añade a main.py...\")."
+      },
+      {
+        "q": "¿Por qué, después de generar el código, conviene pedirle a Copilot Chat que explique lo que ha escrito?",
+        "opts": [
+          "Para comprobar si Copilot ha cometido una falta de ortografía",
+          "El vibe coding no exime de entender el código - pedir una explicación crea el hábito de trabajar con la IA de forma consciente",
+          "Porque Copilot solo genera comentarios si se le piden",
+          "Para alargar la lección"
+        ],
+        "explain": "Que la IA genere el código no significa que no tengamos que entenderlo. Pedirle a Copilot Chat una explicación crea el hábito de trabajar de forma consciente - sabemos lo que hace cada fragmento y, si hay un error, sabemos localizarlo."
+      }
+    ]
   },
-  {
-    q: "Po co od samego początku prosimy Copilot Chat o strukturę opartą na klasach?",
-    opts: [
-      "Klasy sprawiają, że program działa szybciej",
-      "Klasy porządkują kod - każda odpowiada za jeden element gry, więc łatwiej dodawać nowe rzeczy bez psucia reszty",
-      "Bez klas pygame w ogóle nie działa",
-      "Klasy są wymagane przez Copilot Chat, inaczej nie wygeneruje kodu"
-    ],
-    correct: 1,
-    explain: "Klasy takie jak Player, Enemy, Bullet i Game dzielą kod na logiczne części. Dzięki temu dodawanie nowych funkcji (np. kolizji albo power-upów) nie wymaga przepisywania całości."
-  },
-  {
-    q: "Co powinniśmy zrobić natychmiast po tym, jak Copilot Chat wygeneruje kod?",
-    opts: [
-      "Od razu poprosić o kolejny element gry",
-      "Zamknąć VS Code i otworzyć ponownie",
-      "Kliknąć Apply, zapisać plik, uruchomić grę i przetestować wynik",
-      "Skopiować kod na dysk zewnętrzny"
-    ],
-    correct: 2,
-    explain: "Po wygenerowaniu kodu zawsze wstawiamy go do pliku (Apply), zapisujemy i testujemy. Jeśli coś nie działa jak powinno, wracamy do Copilot Chat i poprawiamy prompt. Nigdy nie idziemy dalej bez testu."
-  },
-  {
-    q: "Dlaczego usuwamy pociski, które wyleciały poza ekran gry?",
-    opts: [
-      "Żeby nie kolidowały z wrogami poza ekranem",
-      "Żeby nie zajmowały pamięci - bez usuwania lista rośnie bez końca i gra zwalnia",
-      "Pociski poza ekranem powodują błąd pygame",
-      "To wymóg systemu operacyjnego"
-    ],
-    correct: 1,
-    explain: "Każdy pocisk to obiekt w pamięci. Gdybyśmy ich nie usuwali po opuszczeniu ekranu, z każdym strzałem lista pocisków rosłaby bez końca. Po pewnym czasie gra zacząłaby zauważalnie zwalniać."
-  },
-  {
-    q: "Po co dodajemy nietykalność gracza po stracie życia?",
-    opts: [
-      "Żeby gra była łatwiejsza dla początkujących",
-      "Żeby jeden wróg nie zabrał kilku żyć naraz, bo gracz dotykałby go przez więcej niż jedną klatkę",
-      "Żeby sprite gracza wyglądał ciekawiej",
-      "Żeby Copilot Chat miał więcej kodu do wygenerowania"
-    ],
-    correct: 1,
-    explain: "Bez nietykalności zderzenie z wrogiem trwające kilka klatek gry mogłoby zabrać wszystkie życia naraz. Dwusekundowa nietykalność z miganiem chroni gracza i daje mu wizualny sygnał, że jest chwilowo bezpieczny."
-  },
-  {
-    q: "Co robi pętla gry (game loop) w każdej klatce?",
-    opts: [
-      "Tylko rysuje obraz na ekranie",
-      "Sprawdza naciśnięte klawisze, przesuwa obiekty i rysuje nowy obraz na ekranie",
-      "Łączy się z internetem i pobiera nowe zasoby",
-      "Zapisuje stan gry do pliku"
-    ],
-    correct: 1,
-    explain: "Pętla gry działa w nieskończoność z częstotliwością 60 klatek na sekundę. W każdej klatce obsługuje wejście gracza (klawisze), aktualizuje pozycje obiektów (ruch, kolizje) i rysuje wszystko od nowa na ekranie."
-  },
-  {
-    q: "Jak Copilot Chat wie, do którego pliku dodać nowy kod?",
-    opts: [
-      "Zawsze tworzy nowy plik dla każdego prompta",
-      "Widzi kontekst otwartego pliku w edytorze, dlatego ważne jest, żeby main.py był otwarty",
-      "Nie wie - trzeba mu podać pełną ścieżkę systemową",
-      "Czyta wszystkie pliki na dysku komputera"
-    ],
-    correct: 1,
-    explain: "Copilot Chat korzysta z kontekstu otwartego pliku w VS Code. Dlatego przed każdym promptem upewniamy się, że main.py jest otwarty w edytorze. Możemy też wskazać plik w treści prompta (np. \"Dodaj do main.py...\")."
-  },
-  {
-    q: "Dlaczego po wygenerowaniu kodu warto poprosić Copilot Chat o wyjaśnienie tego, co napisał?",
-    opts: [
-      "Żeby sprawdzić, czy Copilot nie popełnił błędu ortograficznego",
-      "Vibe coding nie zwalnia z rozumienia kodu - pytanie o wyjaśnienie buduje nawyk świadomej pracy z AI",
-      "Bo Copilot generuje komentarze tylko na żądanie",
-      "Żeby wydłużyć lekcję"
-    ],
-    correct: 1,
-    explain: "Generowanie kodu przez AI nie oznacza, że nie musimy go rozumieć. Pytanie Copilot Chat o wyjaśnienie buduje nawyk świadomej pracy - wiemy co robi każdy fragment, a w razie błędu potrafimy go zlokalizować."
+  "de": {
+    "ui": {
+      "title": "Quiz - Copilot Chat & Vibe Coding",
+      "badge": "Wiederholung der Lektion",
+      "sub": "10 Fragen zum Bau eines Space Shooters mit KI",
+      "qNum": "Frage {n} von {total}",
+      "next": "Nächste Frage →",
+      "seeResult": "Ergebnis ansehen →",
+      "resultsLabel": "richtige Antworten",
+      "restart": "Nochmal spielen",
+      "v100": "🚀 Perfekt! Vibe Coding hat keine Geheimnisse mehr für dich!",
+      "v80": "🎯 Tolles Ergebnis! Du hast solide Grundlagen im Vibe Coding.",
+      "v60": "👍 Gute Arbeit! Es lohnt sich, ein paar Themen zu wiederholen.",
+      "v40": "💡 Ein guter Anfang - sieh dir den Stoff der Lektion noch einmal an.",
+      "v0": "📖 Es lohnt sich, zur Lektion zurückzukehren und die wichtigsten Begriffe zu wiederholen!"
+    },
+    "questions": [
+      {
+        "q": "Worin unterscheidet sich Copilot Chat von der Autovervollständigung von Copilot?",
+        "opts": [
+          "Copilot Chat funktioniert nur offline, die Autovervollständigung braucht Internet",
+          "Copilot Chat erzeugt ganze Codeblöcke aus einer Beschreibung in natürlicher Sprache, die Autovervollständigung schlägt beim Tippen Fragmente vor",
+          "Die Autovervollständigung ist neuer und besser als Copilot Chat",
+          "Copilot Chat dient nur zum Stellen von Fragen und erzeugt keinen Code"
+        ],
+        "explain": "Die Autovervollständigung reagiert auf den Code, den wir schreiben, und ergänzt weitere Fragmente. Copilot Chat ist ein Chatfenster, in dem wir beschreiben, was wir wollen, und die KI erzeugt fertigen Code - ein vollständiges Gespräch mit dem Modell."
+      },
+      {
+        "q": "Wie sieht der richtige Arbeitsablauf beim Vibe Coding aus?",
+        "opts": [
+          "Den ganzen Code schreiben → am Ende testen → an den Kunden schicken",
+          "Beschreiben, was du willst → Code erzeugen → testen → bei Bedarf den Prompt verbessern",
+          "Code aus dem Internet kopieren → einfügen → ausführen",
+          "Das ganze Spiel mit einem Prompt erzeugen → das fertige Projekt abgeben"
+        ],
+        "explain": "Vibe Coding beruht auf einem Kreislauf: Wir beschreiben ein Spielelement in natürlicher Sprache, die KI erzeugt den Code, wir testen das Ergebnis und wiederholen - wir verbessern den Prompt, bis das Ergebnis so ist, wie wir es wollten."
+      },
+      {
+        "q": "Warum bauen wir das Spiel Element für Element, statt es mit einem einzigen Prompt zu erzeugen?",
+        "opts": [
+          "Copilot Chat kann kein großes Programm erzeugen",
+          "Weil es die Regeln der Lektion so verlangen, sonst nichts",
+          "Schrittweises Bauen gibt mehr Kontrolle über das Ergebnis und hilft zu verstehen, wie die Elemente zusammenarbeiten",
+          "Weil ein einziger Prompt zu teuer wäre"
+        ],
+        "explain": "Mit dem schrittweisen Vorgehen können wir jedes Element einzeln kontrollieren. Wir wissen, was jedes Fragment macht, und wenn etwas nicht funktioniert, finden wir die Ursache leicht. Ein riesiger Prompt gibt weniger Kontrolle."
+      },
+      {
+        "q": "Warum bitten wir Copilot Chat von Anfang an um eine klassenbasierte Struktur?",
+        "opts": [
+          "Klassen sorgen dafür, dass das Programm schneller läuft",
+          "Klassen ordnen den Code - jede ist für ein Spielelement zuständig, daher lassen sich neue Dinge leichter hinzufügen, ohne den Rest kaputtzumachen",
+          "Ohne Klassen funktioniert pygame überhaupt nicht",
+          "Copilot Chat verlangt Klassen, sonst erzeugt es keinen Code"
+        ],
+        "explain": "Klassen wie Player, Enemy, Bullet und Game teilen den Code in logische Teile. Dadurch muss man beim Hinzufügen neuer Funktionen (z. B. Kollisionen oder Power-ups) nicht alles neu schreiben."
+      },
+      {
+        "q": "Was sollten wir sofort tun, nachdem Copilot Chat den Code erzeugt hat?",
+        "opts": [
+          "Sofort nach dem nächsten Spielelement fragen",
+          "VS Code schließen und erneut öffnen",
+          "Auf Apply klicken, die Datei speichern, das Spiel starten und das Ergebnis testen",
+          "Den Code auf ein externes Laufwerk kopieren"
+        ],
+        "explain": "Nach dem Erzeugen fügen wir den Code immer in die Datei ein (Apply), speichern sie und testen. Wenn etwas nicht wie gewünscht funktioniert, gehen wir zurück zu Copilot Chat und verbessern den Prompt. Wir machen nie ohne Test weiter."
+      },
+      {
+        "q": "Warum entfernen wir Geschosse, die den Spielbildschirm verlassen haben?",
+        "opts": [
+          "Damit sie außerhalb des Bildschirms nicht mit Gegnern kollidieren",
+          "Damit sie keinen Speicher belegen - ohne Entfernen wächst die Liste endlos und das Spiel wird langsamer",
+          "Geschosse außerhalb des Bildschirms verursachen einen pygame-Fehler",
+          "Das verlangt das Betriebssystem"
+        ],
+        "explain": "Jedes Geschoss ist ein Objekt im Speicher. Würden wir sie nach dem Verlassen des Bildschirms nicht entfernen, würde die Liste der Geschosse mit jedem Schuss endlos wachsen. Nach einer Weile würde das Spiel spürbar langsamer werden."
+      },
+      {
+        "q": "Wozu machen wir den Spieler nach dem Verlust eines Lebens unverwundbar?",
+        "opts": [
+          "Damit das Spiel für Anfänger leichter ist",
+          "Damit ein Gegner nicht mehrere Leben auf einmal nimmt, weil der Spieler ihn länger als einen Frame berühren würde",
+          "Damit das Sprite des Spielers interessanter aussieht",
+          "Damit Copilot Chat mehr Code zu erzeugen hat"
+        ],
+        "explain": "Ohne Unverwundbarkeit könnte eine Kollision mit einem Gegner, die mehrere Frames dauert, alle Leben auf einmal nehmen. Zwei Sekunden Unverwundbarkeit mit Blinken schützen den Spieler und zeigen ihm deutlich, dass er gerade sicher ist."
+      },
+      {
+        "q": "Was macht die Spielschleife (Game Loop) in jedem Frame?",
+        "opts": [
+          "Sie zeichnet nur das Bild auf den Bildschirm",
+          "Sie prüft gedrückte Tasten, bewegt Objekte und zeichnet ein neues Bild auf den Bildschirm",
+          "Sie verbindet sich mit dem Internet und lädt neue Assets herunter",
+          "Sie speichert den Spielstand in einer Datei"
+        ],
+        "explain": "Die Spielschleife läuft endlos mit 60 Frames pro Sekunde. In jedem Frame verarbeitet sie die Eingaben des Spielers (Tasten), aktualisiert die Positionen der Objekte (Bewegung, Kollisionen) und zeichnet alles neu auf den Bildschirm."
+      },
+      {
+        "q": "Woher weiß Copilot Chat, zu welcher Datei der neue Code hinzugefügt werden soll?",
+        "opts": [
+          "Es erstellt für jeden Prompt immer eine neue Datei",
+          "Es sieht den Kontext der im Editor geöffneten Datei, deshalb ist es wichtig, dass main.py geöffnet ist",
+          "Gar nicht - man muss ihm den vollständigen Systempfad angeben",
+          "Es liest alle Dateien auf der Festplatte des Computers"
+        ],
+        "explain": "Copilot Chat nutzt den Kontext der in VS Code geöffneten Datei. Deshalb stellen wir vor jedem Prompt sicher, dass main.py im Editor geöffnet ist. Wir können die Datei auch direkt im Prompt angeben (z. B. \"Füge zu main.py hinzu...\")."
+      },
+      {
+        "q": "Warum lohnt es sich, Copilot Chat nach dem Erzeugen des Codes um eine Erklärung zu bitten?",
+        "opts": [
+          "Um zu prüfen, ob Copilot einen Rechtschreibfehler gemacht hat",
+          "Vibe Coding entbindet nicht davon, den Code zu verstehen - die Bitte um eine Erklärung baut die Gewohnheit auf, bewusst mit KI zu arbeiten",
+          "Weil Copilot Kommentare nur auf Anfrage erzeugt",
+          "Um die Lektion zu verlängern"
+        ],
+        "explain": "Dass die KI Code erzeugt, heißt nicht, dass wir ihn nicht verstehen müssen. Copilot Chat um eine Erklärung zu bitten, baut die Gewohnheit bewussten Arbeitens auf - wir wissen, was jedes Fragment macht, und können einen Fehler im Ernstfall finden."
+      }
+    ]
   }
-];
+};
+const CORRECT = [1, 1, 2, 1, 2, 1, 1, 1, 1, 1];
+const LANGS = ['pl', 'en', 'es', 'de'];
+const TOTAL = CORRECT.length;
+let lang = 'pl';
+const T = () => I18N[lang].ui;
+const QS = () => I18N[lang].questions;
+const fmt = (s, v) => s.replace(/\{(\w+)\}/g, (_, k) => v[k]);
 
-let current = 0, score = 0, answered = false;
+let current = 0, score = 0, answered = false, picked = null, resultsShown = false;
 
 function init() {
   // starfield
@@ -374,16 +765,19 @@ function init() {
     s.style.cssText = `width:${size}px;height:${size}px;top:${Math.random()*100}%;left:${Math.random()*100}%;--d:${2+Math.random()*4}s;animation-delay:${Math.random()*3}s`;
     sf.appendChild(s);
   }
-  renderQuestion();
+  let startLang = 'pl';
+  try { const saved = localStorage.getItem('quizLang'); if (LANGS.includes(saved)) startLang = saved; } catch (e) { /* storage unavailable */ }
+  setLang(startLang, false);
 }
 
-function renderQuestion() {
+// keepState = re-render the same question in another language (answer, explanation and button stay)
+function renderQuestion(keepState) {
   const c = document.getElementById('quiz-container');
-  const d = DATA[current];
+  const d = QS()[current];
   const letters = ['A','B','C','D'];
   c.innerHTML = `
-    <div class="card" id="qcard">
-      <div class="q-num">Pytanie ${current+1} z ${DATA.length}</div>
+    <div class="card${keepState ? ' no-anim' : ''}" id="qcard">
+      <div class="q-num">${fmt(T().qNum, { n: current + 1, total: TOTAL })}</div>
       <div class="q-text">${d.q}</div>
       <div class="options">
         ${d.opts.map((o,i) => `
@@ -394,61 +788,98 @@ function renderQuestion() {
       </div>
       <div class="explanation" id="expl">${d.explain}</div>
     </div>`;
-  answered = false;
-  document.getElementById('btn-next').classList.remove('show');
+  if (!keepState) {
+    answered = false; picked = null;
+    document.getElementById('btn-next').classList.remove('show');
+  } else if (answered) {
+    markAnswer(picked);
+  }
   updateProgress();
+}
+
+function markAnswer(idx) {
+  const correct = CORRECT[current];
+  const opts = document.querySelectorAll('.opt');
+  opts.forEach(o => o.classList.add('locked'));
+  if (idx === correct) opts[idx].classList.add('correct');
+  else { opts[idx].classList.add('wrong'); opts[correct].classList.add('correct'); }
+  document.getElementById('expl').classList.add('show');
+  const btn = document.getElementById('btn-next');
+  btn.textContent = current < TOTAL - 1 ? T().next : T().seeResult;
+  btn.classList.add('show');
 }
 
 function pick(el, idx) {
   if (answered) return;
   answered = true;
-  const correct = DATA[current].correct;
-  const opts = document.querySelectorAll('.opt');
-  opts.forEach(o => o.classList.add('locked'));
-  if (idx === correct) { el.classList.add('correct'); score++; }
-  else { el.classList.add('wrong'); opts[correct].classList.add('correct'); }
-  document.getElementById('expl').classList.add('show');
-  const btn = document.getElementById('btn-next');
-  btn.textContent = current < DATA.length - 1 ? 'Następne pytanie →' : 'Zobacz wynik →';
-  btn.classList.add('show');
+  picked = idx;
+  if (idx === CORRECT[current]) score++;
+  markAnswer(idx);
   updateProgress();
 }
 
 document.getElementById('btn-next').addEventListener('click', () => {
   current++;
-  if (current < DATA.length) renderQuestion();
+  if (current < TOTAL) renderQuestion(false);
   else showResults();
 });
 
 function updateProgress() {
-  const done = answered ? current + 1 : current;
-  document.getElementById('prog-label').textContent = `${done} / ${DATA.length}`;
-  document.getElementById('prog-fill').style.width = `${(done/DATA.length)*100}%`;
+  const done = resultsShown ? TOTAL : (answered ? current + 1 : current);
+  document.getElementById('prog-label').textContent = `${done} / ${TOTAL}`;
+  document.getElementById('prog-fill').style.width = `${(done/TOTAL)*100}%`;
 }
 
-function showResults() {
-  document.getElementById('quiz-container').innerHTML = '';
-  document.getElementById('btn-next').classList.remove('show');
-  document.getElementById('prog-fill').style.width = '100%';
-  document.getElementById('prog-label').textContent = `${DATA.length} / ${DATA.length}`;
-  const r = document.getElementById('results');
-  r.classList.remove('hidden');
-  document.getElementById('res-score').textContent = `${score} / ${DATA.length}`;
-  const pct = score / DATA.length;
+function renderResults() {
+  const ui = T();
+  document.getElementById('res-score').textContent = `${score} / ${TOTAL}`;
+  const pct = score / TOTAL;
   let v = '';
-  if (pct === 1) v = '🚀 Perfekcyjnie! Vibe coding nie ma przed Tobą tajemnic!';
-  else if (pct >= 0.8) v = '🎯 Świetny wynik! Masz solidne podstawy vibe codingu.';
-  else if (pct >= 0.6) v = '👍 Dobra robota! Warto powtórzyć kilka zagadnień.';
-  else if (pct >= 0.4) v = '💡 Niezły start - przejrzyj materiał z lekcji jeszcze raz.';
-  else v = '📖 Warto wrócić do lekcji i powtórzyć kluczowe pojęcia!';
+  if (pct === 1) v = ui.v100;
+  else if (pct >= 0.8) v = ui.v80;
+  else if (pct >= 0.6) v = ui.v60;
+  else if (pct >= 0.4) v = ui.v40;
+  else v = ui.v0;
   document.getElementById('res-verdict').textContent = v;
 }
 
-function restart() {
-  current = 0; score = 0;
-  document.getElementById('results').classList.add('hidden');
-  renderQuestion();
+function showResults() {
+  resultsShown = true;
+  document.getElementById('quiz-container').innerHTML = '';
+  document.getElementById('btn-next').classList.remove('show');
+  updateProgress();
+  document.getElementById('results').classList.remove('hidden');
+  renderResults();
 }
+
+function restart() {
+  current = 0; score = 0; resultsShown = false;
+  document.getElementById('results').classList.add('hidden');
+  renderQuestion(false);
+}
+
+// ---- language switching ----
+function setLang(l, persist = true) {
+  if (!LANGS.includes(l)) l = 'pl';
+  lang = l;
+  const ui = T();
+  document.documentElement.lang = l;
+  document.title = ui.title;
+  document.getElementById('tBadge').textContent = ui.badge;
+  document.getElementById('tSub').textContent = ui.sub;
+  document.getElementById('tResultsLabel').textContent = ui.resultsLabel;
+  document.getElementById('tRestart').textContent = ui.restart;
+  document.querySelectorAll('.lang-btn').forEach(b => {
+    const on = b.dataset.lang === l;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  if (persist) { try { localStorage.setItem('quizLang', l); } catch (e) { /* storage unavailable */ } }
+  if (resultsShown) renderResults();
+  else renderQuestion(true);
+}
+
+document.querySelectorAll('.lang-btn').forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
 
 init();
 </script>
